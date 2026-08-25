@@ -1,0 +1,1266 @@
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, status
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional, Union
+import io
+import uvicorn
+import uuid
+import datetime
+from sqlalchemy.orm import Session
+
+# Database and Security imports
+from database import engine, get_db, USE_POSTGRES
+import auth
+
+if USE_POSTGRES:
+    import models_pg as models
+else:
+    import models
+
+# Import our custom services
+from services.image_processor import ImageProcessor
+from services.cataloger import Cataloger, ProductCatalog
+from services.pricing_assistant import PricingAssistant, PriceBreakdown
+
+# Initialize database tables
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="Artisan AI Backend API",
+    description="AI-driven backend for artisan studio cataloging, role dashboards, and B2B linkages.",
+    version="2.0.0"
+)
+
+# Enable CORS for frontend connectivity
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize service singletons
+cataloger_service = Cataloger()
+pricing_service = PricingAssistant()
+
+# --- Pydantic Schemas ---
+class PricingRequest(BaseModel):
+    category: str
+    material_cost: float
+    manufacturing_hours: float
+    product_description: str
+
+class UserRegister(BaseModel):
+    username: str
+    password: str
+    role: str  # Admin, Artisan, Buyer, Aggregator
+    region: Optional[str] = None
+    preferred_lang: Optional[str] = "Hindi"
+    craft_type: Optional[str] = None
+    aadhaar_number: Optional[str] = None
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    role: str
+    username: str
+
+class UserResponse(BaseModel):
+    id: Union[uuid.UUID, str, int]
+    username: Optional[str] = None
+    role: str
+    region: Optional[str] = None
+    preferred_lang: Optional[str] = "Hindi"
+    craft_type: Optional[str] = None
+    aadhaar_number: Optional[str] = None
+    is_verified: bool
+    phone_number: Optional[str] = None
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    state: Optional[str] = None
+    district: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class ProductCreate(BaseModel):
+    title_en: str
+    title_hi: str
+    description_en: str
+    description_hi: str
+    category: str
+    materials: List[str]
+    tags: List[str]
+    retail_price: float
+    b2b_price: float
+    stock: int = 10
+    image_url: Optional[str] = None
+    artisan_name: Optional[str] = None
+    artisan_coop: Optional[str] = None
+
+class ProductResponse(BaseModel):
+    id: Union[uuid.UUID, str, int]
+    title_en: str
+    title_hi: str
+    description_en: Optional[str] = None
+    description_hi: Optional[str] = None
+    category: str
+    materials: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    retail_price: float
+    b2b_price: float
+    stock: int
+    status: str
+    image_url: Optional[str] = None
+    artisan_name: Optional[str] = None
+    artisan_coop: Optional[str] = None
+    artisan_id: Optional[Union[uuid.UUID, str, int]] = None
+    class Config:
+        from_attributes = True
+
+class InquiryCreate(BaseModel):
+    product_id: Union[uuid.UUID, str, int]
+    buyer_name: str
+    buyer_email: str
+    quantity: int = 1
+    notes: Optional[str] = None
+
+class InquiryResponse(BaseModel):
+    id: Union[uuid.UUID, str, int]
+    product_id: Union[uuid.UUID, str, int]
+    buyer_name: str
+    buyer_email: str
+    quantity: int
+    notes: Optional[str] = None
+    status: str
+    product: Optional[ProductResponse] = None
+    class Config:
+        from_attributes = True
+
+class NotificationCreate(BaseModel):
+    title: str
+    message: str
+    target_role: str = "All"
+
+class NotificationResponse(BaseModel):
+    id: Union[uuid.UUID, str, int]
+    title: str
+    message: str
+    target_role: str
+    class Config:
+        from_attributes = True
+
+# --- New Dashboard Pydantic Schemas ---
+class ClusterCreate(BaseModel):
+    cluster_name: str
+    state: str
+    district: str
+    craft_specialization: Optional[str] = None
+
+class ClusterResponse(BaseModel):
+    id: Union[uuid.UUID, str]
+    cluster_name: str
+    state: str
+    district: str
+    craft_specialization: Optional[str] = None
+    aggregator_id: Optional[Union[uuid.UUID, str]] = None
+    total_artisans: int
+    created_at: datetime.datetime
+    class Config:
+        from_attributes = True
+
+class VerificationReview(BaseModel):
+    status: str  # Approved, Rejected
+    rejection_reason: Optional[str] = None
+    aadhaar_verified: bool = True
+    bank_verified: bool = True
+
+class GovtSchemeCreate(BaseModel):
+    scheme_name: str
+    description: str
+    eligibility_criteria: Optional[str] = None
+    application_url: Optional[str] = None
+    valid_until: Optional[str] = None  # YYYY-MM-DD
+
+class SchemeResponse(BaseModel):
+    id: Union[uuid.UUID, str]
+    scheme_name: str
+    description: str
+    eligibility_criteria: Optional[str] = None
+    application_url: Optional[str] = None
+    created_by: Optional[Union[uuid.UUID, str]] = None
+    is_active: bool
+    valid_until: Optional[datetime.date] = None
+    created_at: datetime.datetime
+    class Config:
+        from_attributes = True
+
+class SchemeAlertCreate(BaseModel):
+    target_state: Optional[str] = None
+    target_craft_type: Optional[str] = None
+
+class ExhibitionCreate(BaseModel):
+    name: str
+    location: str
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+
+class ExhibitionResponse(BaseModel):
+    id: Union[uuid.UUID, str]
+    name: str
+    location: str
+    status: str
+    start_date: datetime.date
+    end_date: datetime.date
+    created_by: Optional[Union[uuid.UUID, str]] = None
+    is_active: bool
+    class Config:
+        from_attributes = True
+
+class ExhibitionRegistrationResponse(BaseModel):
+    id: Union[uuid.UUID, str]
+    exhibition_id: Union[uuid.UUID, str]
+    artisan_id: Union[uuid.UUID, str]
+    status: str
+    registered_at: datetime.datetime
+    class Config:
+        from_attributes = True
+
+# --- Model Mapper Helper Functions ---
+
+def map_product_to_response(product) -> ProductResponse:
+    if not product:
+        return None
+    if not USE_POSTGRES:
+        # SQLite
+        return ProductResponse(
+            id=product.id,
+            title_en=product.title_en,
+            title_hi=product.title_hi,
+            description_en=product.description_en,
+            description_hi=product.description_hi,
+            category=product.category,
+            materials=product.materials or [],
+            tags=product.tags or [],
+            retail_price=product.retail_price,
+            b2b_price=product.b2b_price,
+            stock=product.stock,
+            status=product.status,
+            image_url=product.image_url,
+            artisan_name=product.artisan_name,
+            artisan_coop=product.artisan_coop,
+            artisan_id=product.artisan_id
+        )
+    else:
+        # PostgreSQL
+        image_url = None
+        if product.images:
+            primary_images = [img for img in product.images if img.is_primary]
+            if primary_images:
+                image_url = primary_images[0].enhanced_url or primary_images[0].original_url
+            else:
+                image_url = product.images[0].enhanced_url or product.images[0].original_url
+        
+        artisan_name = "Independent Artisan"
+        artisan_coop = None
+        if product.artisan:
+            if product.artisan.user:
+                artisan_name = product.artisan.user.full_name
+            artisan_coop = product.artisan.cluster_name
+
+        materials_list = []
+        if product.material:
+            materials_list = [m.strip() for m in product.material.split(",") if m.strip()]
+
+        return ProductResponse(
+            id=str(product.id),
+            title_en=product.title_en,
+            title_hi=product.title_hi,
+            description_en=product.description_en,
+            description_hi=product.description_hi,
+            category=product.craft_category or "Handicrafts",
+            materials=materials_list,
+            tags=[],
+            retail_price=float(product.base_price),
+            b2b_price=float(product.suggested_price) if product.suggested_price else float(product.base_price * 0.85),
+            stock=product.stock_count,
+            status=product.status,
+            image_url=image_url,
+            artisan_name=artisan_name,
+            artisan_coop=artisan_coop,
+            artisan_id=str(product.artisan_id)
+        )
+
+def map_user_to_response(user) -> UserResponse:
+    if not user:
+        return None
+    if not USE_POSTGRES:
+        # SQLite
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            role=user.role,
+            region=user.region,
+            preferred_lang=user.preferred_lang,
+            craft_type=user.craft_type,
+            aadhaar_number=user.aadhaar_number,
+            is_verified=user.is_verified
+        )
+    else:
+        # PostgreSQL
+        region = user.district or user.state
+        preferred_lang = user.preferred_language
+        
+        craft_type = None
+        aadhaar_number = None
+        if user.artisan_profile:
+            craft_type = user.artisan_profile.craft_type
+            aadhaar_number = user.artisan_profile.aadhaar_number
+
+        return UserResponse(
+            id=str(user.id),
+            username=user.username or user.phone_number,
+            role=user.role,
+            region=region,
+            preferred_lang=preferred_lang,
+            craft_type=craft_type,
+            aadhaar_number=aadhaar_number,
+            is_verified=user.is_verified,
+            phone_number=user.phone_number,
+            full_name=user.full_name,
+            email=user.email,
+            state=user.state,
+            district=user.district
+        )
+
+def map_inquiry_to_response(inquiry) -> InquiryResponse:
+    if not inquiry:
+        return None
+    if not USE_POSTGRES:
+        # SQLite
+        return InquiryResponse(
+            id=inquiry.id,
+            product_id=inquiry.product_id,
+            buyer_name=inquiry.buyer_name,
+            buyer_email=inquiry.buyer_email,
+            quantity=inquiry.quantity,
+            notes=inquiry.notes,
+            status=inquiry.status,
+            product=map_product_to_response(inquiry.product) if inquiry.product else None
+        )
+    else:
+        # PostgreSQL
+        buyer_name = "B2B Buyer"
+        buyer_email = ""
+        if inquiry.buyer:
+            buyer_name = inquiry.buyer.full_name
+            buyer_email = inquiry.buyer.email or ""
+
+        return InquiryResponse(
+            id=str(inquiry.id),
+            product_id=str(inquiry.product_id),
+            buyer_name=buyer_name,
+            buyer_email=buyer_email,
+            quantity=inquiry.quantity,
+            notes=inquiry.message,
+            status=inquiry.status,
+            product=map_product_to_response(inquiry.product) if inquiry.product else None
+        )
+
+def map_notification_to_response(notification) -> NotificationResponse:
+    if not notification:
+        return None
+    if not USE_POSTGRES:
+        return NotificationResponse(
+            id=notification.id,
+            title=notification.title,
+            message=notification.message,
+            target_role=notification.target_role
+        )
+    else:
+        return NotificationResponse(
+            id=str(notification.id),
+            title=notification.title,
+            message=notification.body,
+            target_role="All"
+        )
+
+# --- Endpoints ---
+
+@app.get("/")
+def read_root():
+    db_mode = "PostgreSQL" if USE_POSTGRES else "SQLite"
+    return {
+        "message": "Welcome to Artisan AI API! Use /docs for API documentation.",
+        "database_backend": db_mode
+    }
+
+# --- Legacy & AI Studio Core Routes ---
+
+@app.post("/enhance", summary="AI Studio Background Removal & Lighting Correction")
+async def enhance_image(file: UploadFile = File(...)):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
+
+    try:
+        raw_bytes = await file.read()
+        enhanced_bytes = ImageProcessor.process_artisan_image(raw_bytes)
+        
+        return StreamingResponse(
+            io.BytesIO(enhanced_bytes),
+            media_type="image/png",
+            headers={"Content-Disposition": f"attachment; filename=enhanced_{file.filename.split('.')[0]}.png"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image enhancement failed: {str(e)}")
+
+@app.post("/catalog", response_model=ProductCatalog, summary="Multilingual Catalog Generator")
+async def generate_catalog(
+    audio: UploadFile = File(None),
+    text_desc: str = Form(None),
+    lang: str = Form("Hindi")
+):
+    if audio:
+        try:
+            audio_bytes = await audio.read()
+            mime_type = audio.content_type or "audio/wav"
+            catalog = cataloger_service.generate_catalog_from_audio(audio_bytes, mime_type=mime_type)
+            return catalog
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Voice cataloging failed: {str(e)}")
+    elif text_desc:
+        try:
+            catalog = cataloger_service.generate_catalog_from_text(text_desc, regional_lang=lang)
+            return catalog
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Text cataloging failed: {str(e)}")
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail="Either a regional audio voice note or a text description must be provided."
+        )
+
+@app.post("/suggest-price", response_model=PriceBreakdown, summary="Dynamic Pricing Assistant")
+def suggest_price(request: PricingRequest):
+    try:
+        breakdown = pricing_service.calculate_suggested_price(
+            category=request.category,
+            material_cost=request.material_cost,
+            manufacturing_hours=request.manufacturing_hours,
+            product_description=request.product_description
+        )
+        return breakdown
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pricing suggestions failed: {str(e)}")
+
+# --- Authentication Endpoints ---
+
+@app.post("/auth/register", response_model=UserResponse)
+def register_user(user: UserRegister, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(
+        (models.User.username == user.username) | 
+        (models.User.phone_number == user.username)
+    ).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="User already registered")
+    
+    hashed_pwd = auth.hash_password(user.password)
+    is_verified = user.role in ["Buyer", "Aggregator", "Admin"]
+    
+    if not USE_POSTGRES:
+        # SQLite
+        new_user = models.User(
+            username=user.username,
+            password_hash=hashed_pwd,
+            role=user.role,
+            region=user.region,
+            preferred_lang=user.preferred_lang,
+            craft_type=user.craft_type,
+            aadhaar_number=user.aadhaar_number,
+            is_verified=is_verified
+        )
+    else:
+        # PostgreSQL
+        phone = user.aadhaar_number[-10:] if (user.aadhaar_number and len(user.aadhaar_number) >= 10) else f"98765{str(uuid.uuid4().int)[:10]}"
+        if user.username.isdigit() and len(user.username) >= 10:
+            phone = user.username
+        
+        new_user = models.User(
+            username=user.username,
+            phone_number=phone,
+            full_name=user.username.capitalize(),
+            email=f"{user.username}@artisan.ai",
+            password_hash=hashed_pwd,
+            role=user.role,
+            preferred_language=user.preferred_lang,
+            state=user.region or "Uttar Pradesh",
+            district="Varanasi",
+            is_verified=is_verified
+        )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    if USE_POSTGRES:
+        # Automatically create ArtisanProfile for Artisan role
+        if user.role == "Artisan":
+            profile = models.ArtisanProfile(
+                user_id=new_user.id,
+                craft_type=user.craft_type or "Handicrafts",
+                cluster_name="Independent Cooperative",
+                aadhaar_number=user.aadhaar_number or str(uuid.uuid4().int)[:12],
+                bank_account="000000000000",
+                ifsc_code="SBIN0000001",
+                upi_id=f"{new_user.username}@upi",
+                govt_scheme_beneficiary=False
+            )
+            db.add(profile)
+            
+            # Create a pending verification record
+            verification = models.ArtisanVerification(
+                artisan_id=new_user.id,
+                status="Pending",
+                aadhaar_verified=False,
+                bank_verified=False
+            )
+            db.add(verification)
+            
+            db.commit()
+            db.refresh(new_user)
+            
+    return map_user_to_response(new_user)
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login_user(user: UserLogin, db: Session = Depends(get_db)):
+    if USE_POSTGRES:
+        db_user = db.query(models.User).filter(
+            (models.User.username == user.username) | 
+            (models.User.phone_number == user.username)
+        ).first()
+    else:
+        db_user = db.query(models.User).filter(models.User.username == user.username).first()
+        
+    if not db_user or not auth.verify_password(user.password, db_user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    # Update last login for Admin User if applicable
+    if USE_POSTGRES and db_user.role == "Admin" and db_user.admin_profile:
+        db_user.admin_profile.last_login = datetime.datetime.utcnow()
+        db.commit()
+        
+    access_token = auth.create_access_token(data={"sub": db_user.username or db_user.phone_number})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": db_user.role,
+        "username": db_user.username or db_user.phone_number
+    }
+
+@app.get("/auth/me", response_model=UserResponse)
+def get_me(current_user: models.User = Depends(auth.get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return map_user_to_response(current_user)
+
+# --- Product Catalog & Database Routes ---
+
+@app.get("/products", response_model=List[ProductResponse])
+def get_products(
+    category: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Product)
+    if not USE_POSTGRES:
+        # SQLite
+        if category and category != "all" and category != "All":
+            query = query.filter(models.Product.category == category)
+        if search:
+            query = query.filter(
+                (models.Product.title_en.contains(search)) | 
+                (models.Product.title_hi.contains(search)) | 
+                (models.Product.description_en.contains(search))
+            )
+    else:
+        # PostgreSQL
+        if category and category != "all" and category != "All":
+            query = query.filter(models.Product.craft_category == category)
+        if search:
+            query = query.filter(
+                (models.Product.title_en.contains(search)) | 
+                (models.Product.title_hi.contains(search)) | 
+                (models.Product.description_en.contains(search))
+            )
+            
+    products_list = query.order_by(models.Product.id.desc()).all()
+    return [map_product_to_response(p) for p in products_list]
+
+@app.post("/products", response_model=ProductResponse)
+def create_product(
+    product: ProductCreate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_current_user)
+):
+    artisan_id = current_user.id if current_user else None
+    artisan_name = current_user.username if current_user else "Independent Artisan"
+    
+    if not USE_POSTGRES:
+        # SQLite
+        new_product = models.Product(
+            title_en=product.title_en,
+            title_hi=product.title_hi,
+            description_en=product.description_en,
+            description_hi=product.description_hi,
+            category=product.category,
+            materials=product.materials,
+            tags=product.tags,
+            retail_price=product.retail_price,
+            b2b_price=product.b2b_price,
+            stock=product.stock,
+            image_url=product.image_url,
+            artisan_name=artisan_name,
+            artisan_coop=product.artisan_coop,
+            artisan_id=artisan_id,
+            status="Active"
+        )
+        db.add(new_product)
+        db.commit()
+        db.refresh(new_product)
+        return map_product_to_response(new_product)
+    else:
+        # PostgreSQL
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required to list products.")
+            
+        # Get or create ArtisanProfile for PostgreSQL
+        profile = db.query(models.ArtisanProfile).filter(models.ArtisanProfile.user_id == current_user.id).first()
+        if not profile:
+            profile = models.ArtisanProfile(
+                user_id=current_user.id,
+                craft_type=product.category,
+                cluster_name=product.artisan_coop or "Independent Cooperative",
+                aadhaar_number=str(uuid.uuid4().int)[:12]
+            )
+            db.add(profile)
+            db.commit()
+            db.refresh(profile)
+            
+        new_product = models.Product(
+            artisan_id=profile.id,
+            title_en=product.title_en,
+            title_hi=product.title_hi,
+            description_en=product.description_en,
+            description_hi=product.description_hi,
+            craft_category=product.category,
+            material=",".join(product.materials),
+            base_price=product.retail_price,
+            suggested_price=product.b2b_price,
+            stock_count=product.stock,
+            status="Active"
+        )
+        db.add(new_product)
+        db.commit()
+        db.refresh(new_product)
+        
+        # Link image to images table
+        if product.image_url:
+            prod_img = models.ProductImage(
+                product_id=new_product.id,
+                original_url=product.image_url,
+                enhanced_url=product.image_url,
+                is_primary=True
+            )
+            db.add(prod_img)
+            db.commit()
+            db.refresh(new_product)
+            
+        return map_product_to_response(new_product)
+
+@app.put("/products/{product_id}", response_model=ProductResponse)
+def update_product_status(
+    product_id: str, 
+    status: str = Form(...), 
+    db: Session = Depends(get_db)
+):
+    if not USE_POSTGRES:
+        product = db.query(models.Product).filter(models.Product.id == int(product_id)).first()
+    else:
+        product = db.query(models.Product).filter(models.Product.id == uuid.UUID(product_id)).first()
+        
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product.status = status
+    db.commit()
+    db.refresh(product)
+    return map_product_to_response(product)
+
+# --- Inquiry Routes ---
+
+@app.post("/inquiries", response_model=InquiryResponse)
+def create_inquiry(inquiry: InquiryCreate, db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        product = db.query(models.Product).filter(models.Product.id == int(inquiry.product_id)).first()
+    else:
+        product = db.query(models.Product).filter(models.Product.id == uuid.UUID(str(inquiry.product_id))).first()
+        
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    if not USE_POSTGRES:
+        # SQLite
+        new_inquiry = models.Inquiry(
+            product_id=int(inquiry.product_id),
+            buyer_name=inquiry.buyer_name,
+            buyer_email=inquiry.buyer_email,
+            quantity=inquiry.quantity,
+            notes=inquiry.notes,
+            status="Pending"
+        )
+        db.add(new_inquiry)
+        
+        new_notification = models.Notification(
+            title="New Bulk Inquiry",
+            message=f"Buyer {inquiry.buyer_name} requested {inquiry.quantity} pcs of '{product.title_en}'",
+            target_role="Artisan"
+        )
+        db.add(new_notification)
+    else:
+        # PostgreSQL
+        # Map or find default buyer in PostgreSQL users
+        buyer = db.query(models.User).filter(models.User.role == "Buyer").first()
+        if not buyer:
+            # Create a mock buyer
+            buyer = models.User(
+                username=inquiry.buyer_name.lower().replace(" ", ""),
+                phone_number=f"90000{str(uuid.uuid4().int)[:5]}",
+                full_name=inquiry.buyer_name,
+                email=inquiry.buyer_email,
+                role="Buyer"
+            )
+            db.add(buyer)
+            db.commit()
+            db.refresh(buyer)
+            
+        # Get artisan user id
+        artisan_user_id = product.artisan.user_id
+        
+        new_inquiry = models.BuyerInquiry(
+            product_id=product.id,
+            buyer_id=buyer.id,
+            artisan_id=artisan_user_id,
+            quantity=inquiry.quantity,
+            message=inquiry.notes,
+            status="Pending"
+        )
+        db.add(new_inquiry)
+        
+        new_notification = models.Notification(
+            user_id=artisan_user_id,
+            title="New Bulk Inquiry",
+            body=f"Buyer {inquiry.buyer_name} requested {inquiry.quantity} pcs of '{product.title_en}'",
+            type="Inquiry"
+        )
+        db.add(new_notification)
+        
+    db.commit()
+    db.refresh(new_inquiry)
+    return map_inquiry_to_response(new_inquiry)
+
+@app.get("/inquiries", response_model=List[InquiryResponse])
+def get_inquiries(db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        inqs = db.query(models.Inquiry).all()
+    else:
+        inqs = db.query(models.BuyerInquiry).all()
+    return [map_inquiry_to_response(i) for i in inqs]
+
+# --- Notifications & Admin Oversight ---
+
+@app.get("/notifications", response_model=List[NotificationResponse])
+def get_notifications(db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        notis = db.query(models.Notification).order_by(models.Notification.id.desc()).all()
+    else:
+        notis = db.query(models.Notification).order_by(models.Notification.sent_at.desc()).all()
+    return [map_notification_to_response(n) for n in notis]
+
+@app.post("/notifications", response_model=NotificationResponse)
+def create_notification(notification: NotificationCreate, db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        new_noti = models.Notification(
+            title=notification.title,
+            message=notification.message,
+            target_role=notification.target_role
+        )
+        db.add(new_noti)
+    else:
+        # Link notification to first user or all users in PostgreSQL
+        user = db.query(models.User).first()
+        if not user:
+            raise HTTPException(status_code=400, detail="No users exist in DB to target.")
+        new_noti = models.Notification(
+            user_id=user.id,
+            title=notification.title,
+            body=notification.message,
+            type="System"
+        )
+        db.add(new_noti)
+        
+    db.commit()
+    db.refresh(new_noti)
+    return map_notification_to_response(new_noti)
+
+@app.get("/admin/users", response_model=List[UserResponse])
+def get_all_users(db: Session = Depends(get_db)):
+    users_list = db.query(models.User).all()
+    return [map_user_to_response(u) for u in users_list]
+
+@app.post("/admin/verify-artisan/{user_id}", response_model=UserResponse)
+def verify_artisan(user_id: str, verify: bool = Form(...), db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        user = db.query(models.User).filter(models.User.id == int(user_id)).first()
+    else:
+        user = db.query(models.User).filter(models.User.id == uuid.UUID(user_id)).first()
+        
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.is_verified = verify
+    
+    if USE_POSTGRES:
+        # Create or update verification record
+        verification = db.query(models.ArtisanVerification).filter(models.ArtisanVerification.artisan_id == user.id).first()
+        if verification:
+            verification.status = "Approved" if verify else "Rejected"
+            verification.reviewed_at = datetime.datetime.utcnow()
+            verification.aadhaar_verified = verify
+            verification.bank_verified = verify
+        else:
+            verification = models.ArtisanVerification(
+                artisan_id=user.id,
+                status="Approved" if verify else "Rejected",
+                reviewed_at=datetime.datetime.utcnow(),
+                aadhaar_verified=verify,
+                bank_verified=verify
+            )
+            db.add(verification)
+            
+    db.commit()
+    db.refresh(user)
+    return map_user_to_response(user)
+
+@app.get("/admin/analytics")
+def get_admin_analytics(db: Session = Depends(get_db)):
+    total_artisans = db.query(models.User).filter(models.User.role == "Artisan").count()
+    total_products = db.query(models.Product).count()
+    
+    if not USE_POSTGRES:
+        total_inquiries = db.query(models.Inquiry).count()
+        inquiries = db.query(models.Inquiry).all()
+        estimated_sales = 0.0
+        for inq in inquiries:
+            if inq.product:
+                estimated_sales += inq.quantity * inq.product.b2b_price
+    else:
+        total_inquiries = db.query(models.BuyerInquiry).count()
+        inquiries = db.query(models.BuyerInquiry).all()
+        estimated_sales = 0.0
+        for inq in inquiries:
+            if inq.product:
+                estimated_sales += inq.quantity * float(inq.product.suggested_price or inq.product.base_price * 0.85)
+                
+    return {
+        "artisans_count": total_artisans,
+        "products_count": total_products,
+        "inquiries_count": total_inquiries,
+        "estimated_sales_value": estimated_sales
+    }
+
+# --- New Dashboard & API Routes (PostgreSQL Only) ---
+
+@app.get("/clusters", response_model=List[ClusterResponse])
+def get_clusters(db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Clusters endpoints are only supported on PostgreSQL.")
+    clusters = db.query(models.Cluster).all()
+    return clusters
+
+@app.post("/clusters", response_model=ClusterResponse)
+def create_cluster(
+    cluster: ClusterCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Clusters endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Only Aggregators or Admins can register clusters.")
+        
+    new_cluster = models.Cluster(
+        cluster_name=cluster.cluster_name,
+        state=cluster.state,
+        district=cluster.district,
+        craft_specialization=cluster.craft_specialization,
+        aggregator_id=current_user.id
+    )
+    db.add(new_cluster)
+    db.commit()
+    db.refresh(new_cluster)
+    return new_cluster
+
+@app.get("/clusters/my-clusters", response_model=List[ClusterResponse])
+def get_my_clusters(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Clusters endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Aggregator":
+        raise HTTPException(status_code=403, detail="Only Aggregators can view their managed clusters.")
+        
+    clusters = db.query(models.Cluster).filter(models.Cluster.aggregator_id == current_user.id).all()
+    return clusters
+
+@app.post("/clusters/{cluster_id}/artisans", response_model=UserResponse)
+def add_artisan_to_cluster(
+    cluster_id: str,
+    artisan_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Clusters endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Only Aggregators or Admins can manage cluster members.")
+        
+    cluster = db.query(models.Cluster).filter(models.Cluster.id == uuid.UUID(cluster_id)).first()
+    artisan = db.query(models.User).filter(models.User.id == uuid.UUID(artisan_id), models.User.role == "Artisan").first()
+    
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    if not artisan:
+        raise HTTPException(status_code=404, detail="Artisan user not found")
+        
+    # Check if already in cluster
+    existing = db.query(models.ClusterArtisan).filter(
+        models.ClusterArtisan.cluster_id == cluster.id,
+        models.ClusterArtisan.artisan_id == artisan.id
+    ).first()
+    
+    if not existing:
+        cluster_art = models.ClusterArtisan(
+            cluster_id=cluster.id,
+            artisan_id=artisan.id
+        )
+        db.add(cluster_art)
+        
+        # Increment cluster count
+        cluster.total_artisans += 1
+        
+        # Link cluster_name in ArtisanProfile if exists
+        if artisan.artisan_profile:
+            artisan.artisan_profile.cluster_name = cluster.cluster_name
+            
+        db.commit()
+        db.refresh(artisan)
+        
+    return map_user_to_response(artisan)
+
+@app.get("/clusters/{cluster_id}/artisans", response_model=List[UserResponse])
+def get_cluster_artisans(cluster_id: str, db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Clusters endpoints are only supported on PostgreSQL.")
+    members = db.query(models.ClusterArtisan).filter(models.ClusterArtisan.cluster_id == uuid.UUID(cluster_id)).all()
+    artisans = [m.artisan for m in members if m.artisan]
+    return [map_user_to_response(a) for a in artisans]
+
+@app.get("/admin/verifications")
+def get_verifications(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Verifications console is only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    verifications = db.query(models.ArtisanVerification).all()
+    results = []
+    for v in verifications:
+        results.append({
+            "id": str(v.id),
+            "artisan_id": str(v.artisan_id),
+            "artisan_name": v.artisan.full_name if v.artisan else "Unknown",
+            "phone_number": v.artisan.phone_number if v.artisan else "N/A",
+            "status": v.status,
+            "rejection_reason": v.rejection_reason,
+            "aadhaar_verified": v.aadhaar_verified,
+            "bank_verified": v.bank_verified,
+            "submitted_at": v.submitted_at,
+            "reviewed_at": v.reviewed_at
+        })
+    return results
+
+@app.post("/admin/verifications/{verification_id}/review", response_model=UserResponse)
+def review_verification(
+    verification_id: str,
+    review: VerificationReview,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Verifications console is only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    verification = db.query(models.ArtisanVerification).filter(models.ArtisanVerification.id == uuid.UUID(verification_id)).first()
+    if not verification:
+        raise HTTPException(status_code=404, detail="Verification record not found.")
+        
+    verification.status = review.status
+    verification.rejection_reason = review.rejection_reason
+    verification.aadhaar_verified = review.aadhaar_verified
+    verification.bank_verified = review.bank_verified
+    verification.reviewed_by = current_user.id
+    verification.reviewed_at = datetime.datetime.utcnow()
+    
+    # Update main user verification status
+    verification.artisan.is_verified = (review.status == "Approved")
+    
+    # Audit trail
+    log = models.AuditLog(
+        admin_id=current_user.admin_profile.id if current_user.admin_profile else None,
+        action=f"Reviewed artisan verification: {review.status}",
+        entity_type="ArtisanVerification",
+        entity_id=verification.id,
+        change_snapshot={"status": review.status, "rejection_reason": review.rejection_reason}
+    )
+    db.add(log)
+    
+    db.commit()
+    db.refresh(verification.artisan)
+    return map_user_to_response(verification.artisan)
+
+@app.post("/admin/schemes", response_model=SchemeResponse)
+def create_govt_scheme(
+    scheme: GovtSchemeCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Govt schemes endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    valid_date = None
+    if scheme.valid_until:
+        valid_date = datetime.datetime.strptime(scheme.valid_until, "%Y-%m-%d").date()
+        
+    new_scheme = models.GovtScheme(
+        scheme_name=scheme.scheme_name,
+        description=scheme.description,
+        eligibility_criteria=scheme.eligibility_criteria,
+        application_url=scheme.application_url,
+        created_by=current_user.id,
+        valid_until=valid_date
+    )
+    db.add(new_scheme)
+    db.commit()
+    db.refresh(new_scheme)
+    return new_scheme
+
+@app.get("/admin/schemes", response_model=List[SchemeResponse])
+def list_govt_schemes(db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Govt schemes endpoints are only supported on PostgreSQL.")
+    schemes = db.query(models.GovtScheme).all()
+    return schemes
+
+@app.post("/admin/schemes/{scheme_id}/alert")
+def broadcast_scheme_alert(
+    scheme_id: str,
+    alert_spec: SchemeAlertCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Scheme alert endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    scheme = db.query(models.GovtScheme).filter(models.GovtScheme.id == uuid.UUID(scheme_id)).first()
+    if not scheme:
+        raise HTTPException(status_code=404, detail="Government scheme not found.")
+        
+    # Find matching artisan users
+    query = db.query(models.User).filter(models.User.role == "Artisan")
+    if alert_spec.target_state:
+        query = query.filter(models.User.state == alert_spec.target_state)
+        
+    # Filter by craft type in profile if spec is provided
+    artisans = query.all()
+    if alert_spec.target_craft_type:
+        artisans = [a for a in artisans if a.artisan_profile and a.artisan_profile.craft_type == alert_spec.target_craft_type]
+        
+    # Send notification to all matching artisans
+    for artisan in artisans:
+        notification = models.Notification(
+            user_id=artisan.id,
+            title=f"New Government Scheme: {scheme.scheme_name}",
+            body=f"You may be eligible for '{scheme.scheme_name}'. Description: {scheme.description[:100]}...",
+            type="Update"
+        )
+        db.add(notification)
+        
+    # Save alert log
+    alert_log = models.SchemeAlert(
+        scheme_id=scheme.id,
+        sent_by=current_user.id,
+        target_state=alert_spec.target_state,
+        target_craft_type=alert_spec.target_craft_type,
+        recipients_count=len(artisans)
+    )
+    db.add(alert_log)
+    db.commit()
+    
+    return {
+        "message": f"Successfully broadcasted scheme alerts to {len(artisans)} artisans.",
+        "recipients_count": len(artisans)
+    }
+
+@app.post("/admin/exhibitions", response_model=ExhibitionResponse)
+def create_exhibition(
+    exhib: ExhibitionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Exhibitions endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    start_date = datetime.datetime.strptime(exhib.start_date, "%Y-%m-%d").date()
+    end_date = datetime.datetime.strptime(exhib.end_date, "%Y-%m-%d").date()
+    
+    new_exhib = models.Exhibition(
+        name=exhib.name,
+        location=exhib.location,
+        status="Upcoming",
+        start_date=start_date,
+        end_date=end_date,
+        created_by=current_user.id
+    )
+    db.add(new_exhib)
+    db.commit()
+    db.refresh(new_exhib)
+    return new_exhib
+
+@app.get("/admin/exhibitions", response_model=List[ExhibitionResponse])
+def get_exhibitions(db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Exhibitions endpoints are only supported on PostgreSQL.")
+    exhibs = db.query(models.Exhibition).all()
+    return exhibs
+
+@app.post("/admin/exhibitions/{exhibition_id}/register", response_model=ExhibitionRegistrationResponse)
+def register_for_exhibition(
+    exhibition_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Exhibitions endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Artisan":
+        raise HTTPException(status_code=403, detail="Only Artisans can register for exhibitions.")
+        
+    exhibition = db.query(models.Exhibition).filter(models.Exhibition.id == uuid.UUID(exhibition_id)).first()
+    if not exhibition:
+        raise HTTPException(status_code=404, detail="Exhibition not found.")
+        
+    # Check if already registered
+    existing = db.query(models.ExhibitionRegistration).filter(
+        models.ExhibitionRegistration.exhibition_id == exhibition.id,
+        models.ExhibitionRegistration.artisan_id == current_user.id
+    ).first()
+    
+    if existing:
+        return existing
+        
+    reg = models.ExhibitionRegistration(
+        exhibition_id=exhibition.id,
+        artisan_id=current_user.id,
+        status="Pending"
+    )
+    db.add(reg)
+    db.commit()
+    db.refresh(reg)
+    return reg
+
+@app.get("/admin/exhibitions/{exhibition_id}/registrations", response_model=List[ExhibitionRegistrationResponse])
+def get_exhibition_registrations(exhibition_id: str, db: Session = Depends(get_db)):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Exhibitions endpoints are only supported on PostgreSQL.")
+    regs = db.query(models.ExhibitionRegistration).filter(models.ExhibitionRegistration.exhibition_id == uuid.UUID(exhibition_id)).all()
+    return regs
+
+@app.post("/admin/exhibitions/registrations/{registration_id}/status")
+def review_exhibition_registration(
+    registration_id: str,
+    status: str = Form(...),  # Approved, Rejected
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Exhibitions endpoints are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    reg = db.query(models.ExhibitionRegistration).filter(models.ExhibitionRegistration.id == uuid.UUID(registration_id)).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Registration record not found.")
+        
+    reg.status = status
+    
+    # Notify artisan
+    noti = models.Notification(
+        user_id=reg.artisan_id,
+        title=f"Exhibition Registration {status}",
+        body=f"Your registration status for exhibition '{reg.exhibition.name}' has been updated to {status}.",
+        type="Update"
+    )
+    db.add(noti)
+    db.commit()
+    return {"message": "Registration updated successfully.", "status": status}
+
+@app.get("/admin/audit-logs")
+def get_audit_logs(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not USE_POSTGRES:
+        raise HTTPException(status_code=501, detail="Audit trails are only supported on PostgreSQL.")
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+        
+    logs = db.query(models.AuditLog).order_by(models.AuditLog.created_at.desc()).all()
+    results = []
+    for log in logs:
+        results.append({
+            "id": str(log.id),
+            "admin_name": log.admin.user.full_name if (log.admin and log.admin.user) else "System",
+            "action": log.action,
+            "entity_type": log.entity_type,
+            "entity_id": str(log.entity_id) if log.entity_id else None,
+            "change_snapshot": log.change_snapshot,
+            "created_at": log.created_at
+        })
+    return results
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

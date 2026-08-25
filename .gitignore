@@ -1,0 +1,16 @@
+# Python virtual environment
+backend/.venv/
+backend/__pycache__/
+backend/services/__pycache__/
+backend/tests/__pycache__/
+backend/*.db
+
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Local configuration
+.vscode/
+.idea/
+.env
+*.zip

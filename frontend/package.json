@@ -1,0 +1,9 @@
+{
+  "name": "artisan-ai-frontend",
+  "version": "1.0.0",
+  "description": "Artisan AI Web Frontend Portal",
+  "scripts": {
+    "start": "python -m http.server 5500",
+    "dev": "python -m http.server 5500"
+  }
+}
