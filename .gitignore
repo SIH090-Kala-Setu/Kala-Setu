@@ -1,16 +1,65 @@
-# Python virtual environment
+# Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
 backend/.venv/
-backend/__pycache__/
-backend/services/__pycache__/
-backend/tests/__pycache__/
-backend/*.db
+*/venv/
+*/.venv/
 
-# Node dependencies
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+
+# Node & Frontend Build Artifacts
 node_modules/
+*/node_modules/
 frontend/node_modules/
+dist/
+*/dist/
+frontend/dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Local configuration
+# Database & SQLite Files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+artisan_ai.db
+kala_setu.db
+
+# OS & Editor Specific Files
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
-.env
-*.zip
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Model weights and temporary AI caches
+.rembg/
