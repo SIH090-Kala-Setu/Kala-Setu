@@ -1,5 +1,8 @@
--- PostgreSQL Database Schema for ArtisanAI
--- Matches the ER Diagram layout perfectly
+-- =============================================================================
+-- PostgreSQL Database Schema for KalaSetu (Artisan AI)
+-- Ministry of Social Justice and Empowerment (MoSJE) | SIH26090
+-- Total: 19 Relational Tables + Seed Data
+-- =============================================================================
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -11,8 +14,10 @@ CREATE TYPE voice_processing_status AS ENUM ('Pending', 'Processing', 'Completed
 CREATE TYPE inquiry_status AS ENUM ('Pending', 'Responded', 'Completed');
 CREATE TYPE notification_type AS ENUM ('System', 'Inquiry', 'Verification', 'Update');
 
+-- -----------------------------------------------------------------------------
 -- 1. Users Table
-CREATE TABLE users (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(50) UNIQUE,
     password_hash VARCHAR(255),
@@ -28,8 +33,10 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 2. Artisan Profile Table
-CREATE TABLE artisan_profile (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS artisan_profile (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     craft_type VARCHAR(100),
@@ -43,8 +50,10 @@ CREATE TABLE artisan_profile (
     subscribed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 3. Products Table
-CREATE TABLE products (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     artisan_id UUID NOT NULL REFERENCES artisan_profile(id) ON DELETE CASCADE,
     title_en VARCHAR(255) NOT NULL,
@@ -57,12 +66,15 @@ CREATE TABLE products (
     base_price DECIMAL(12, 2) NOT NULL,
     suggested_price DECIMAL(12, 2),
     stock_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
     status product_status DEFAULT 'Active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 4. Product Images Table
-CREATE TABLE prod_ct_images (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS prod_ct_images (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     original_url TEXT NOT NULL,
@@ -73,8 +85,10 @@ CREATE TABLE prod_ct_images (
     processed_at TIMESTAMP WITH TIME ZONE
 );
 
+-- -----------------------------------------------------------------------------
 -- 5. Voice Inputs Table
-CREATE TABLE voice_inputs (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS voice_inputs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID REFERENCES products(id) ON DELETE SET NULL,
     artisan_id UUID NOT NULL REFERENCES artisan_profile(id) ON DELETE CASCADE,
@@ -87,8 +101,10 @@ CREATE TABLE voice_inputs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 6. Pricing Suggestions Table
-CREATE TABLE pricing_suggestions (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pricing_suggestions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     min_price DECIMAL(12, 2) NOT NULL,
@@ -99,8 +115,10 @@ CREATE TABLE pricing_suggestions (
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 7. Buyer Inquiries Table
-CREATE TABLE buyer_inquiries (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS buyer_inquiries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     buyer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -112,8 +130,10 @@ CREATE TABLE buyer_inquiries (
     responded_at TIMESTAMP WITH TIME ZONE
 );
 
+-- -----------------------------------------------------------------------------
 -- 8. Notifications Table
-CREATE TABLE notifications (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -124,8 +144,10 @@ CREATE TABLE notifications (
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 9. Admin Users Table
-CREATE TABLE admin_users (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS admin_users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     department VARCHAR(100),
@@ -135,8 +157,10 @@ CREATE TABLE admin_users (
     last_login TIMESTAMP WITH TIME ZONE
 );
 
+-- -----------------------------------------------------------------------------
 -- 10. Audit Logs Table
-CREATE TABLE audit_logs (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     admin_id UUID REFERENCES admin_users(id) ON DELETE SET NULL,
     action VARCHAR(255) NOT NULL,
@@ -147,8 +171,10 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 11. Artisan Verifications Table
-CREATE TABLE artisan_verifications (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS artisan_verifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     artisan_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -160,8 +186,10 @@ CREATE TABLE artisan_verifications (
     reviewed_at TIMESTAMP WITH TIME ZONE
 );
 
+-- -----------------------------------------------------------------------------
 -- 12. Clusters Table
-CREATE TABLE clusters (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS clusters (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     cluster_name VARCHAR(150) NOT NULL,
     state VARCHAR(100) NOT NULL,
@@ -172,16 +200,20 @@ CREATE TABLE clusters (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 13. Cluster Artisans Table
-CREATE TABLE cluster_artisans (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cluster_artisans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     cluster_id UUID NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
     artisan_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 14. Platform Analytics Table
-CREATE TABLE platform_analytics (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS platform_analytics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     report_date DATE UNIQUE NOT NULL,
     total_artisans INTEGER DEFAULT 0,
@@ -193,8 +225,10 @@ CREATE TABLE platform_analytics (
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 15. Govt Schemes Table
-CREATE TABLE govt_schemes (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS govt_schemes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     scheme_name VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
@@ -206,8 +240,10 @@ CREATE TABLE govt_schemes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 16. Scheme Alerts Table
-CREATE TABLE scheme_alerts (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS scheme_alerts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     scheme_id UUID NOT NULL REFERENCES govt_schemes(id) ON DELETE CASCADE,
     sent_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -217,8 +253,10 @@ CREATE TABLE scheme_alerts (
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
 -- 17. Exhibitions Table
-CREATE TABLE exhibitions (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS exhibitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     location VARCHAR(255) NOT NULL,
@@ -229,8 +267,10 @@ CREATE TABLE exhibitions (
     is_active BOOLEAN DEFAULT TRUE
 );
 
+-- -----------------------------------------------------------------------------
 -- 18. Exhibition Registrations Table
-CREATE TABLE exhibition_registrations (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS exhibition_registrations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     exhibition_id UUID NOT NULL REFERENCES exhibitions(id) ON DELETE CASCADE,
     artisan_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -238,3 +278,72 @@ CREATE TABLE exhibition_registrations (
     registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
+-- 19. Product Views Table (Per-listing view analytics)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS product_views (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    viewer_ip VARCHAR(45),
+    viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- -----------------------------------------------------------------------------
+-- Performance Indexes
+-- -----------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_products_artisan_id ON products(artisan_id);
+CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+CREATE INDEX IF NOT EXISTS idx_product_views_product_id ON product_views(product_id);
+CREATE INDEX IF NOT EXISTS idx_buyer_inquiries_artisan_id ON buyer_inquiries(artisan_id);
+CREATE INDEX IF NOT EXISTS idx_buyer_inquiries_buyer_id ON buyer_inquiries(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_cluster_artisans_cluster_id ON cluster_artisans(cluster_id);
+CREATE INDEX IF NOT EXISTS idx_artisan_verifications_status ON artisan_verifications(status);
+
+-- =============================================================================
+-- SEED DATA: Default Admin Account
+-- Credentials: username = 'admin', password = 'admin'
+-- (Bcrypt hash: $2b$12$fqqR/HoUt0b4Ht42YMajhun3DCDIyNNIhXvb1ziDHBSUabDWSHtFy)
+-- =============================================================================
+
+INSERT INTO users (
+    id,
+    username,
+    password_hash,
+    phone_number,
+    full_name,
+    email,
+    role,
+    preferred_language,
+    state,
+    district,
+    is_verified
+) VALUES (
+    gen_random_uuid(),
+    'admin',
+    '$2b$12$fqqR/HoUt0b4Ht42YMajhun3DCDIyNNIhXvb1ziDHBSUabDWSHtFy',
+    '9999999999',
+    'MoSJE Administrator',
+    'admin@mosje.gov.in',
+    'Admin',
+    'English',
+    'New Delhi',
+    'Central Delhi',
+    TRUE
+)
+ON CONFLICT (username) DO UPDATE SET
+    password_hash = '$2b$12$fqqR/HoUt0b4Ht42YMajhun3DCDIyNNIhXvb1ziDHBSUabDWSHtFy',
+    role = 'Admin',
+    is_verified = TRUE;
+
+INSERT INTO admin_users (
+    id,
+    user_id,
+    department,
+    designation,
+    access_level,
+    created_by
+)
+SELECT gen_random_uuid(), id, 'Ministry of Social Justice and Empowerment (MoSJE)', 'Director of Handicrafts & Cluster Welfare', 'Superadmin', 'System'
+FROM users WHERE username = 'admin'
+AND id NOT IN (SELECT user_id FROM admin_users);

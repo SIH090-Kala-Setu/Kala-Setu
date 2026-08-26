@@ -35,6 +35,38 @@ MIGRATIONS = [
         )
         """
     ),
+    # Seed default Admin account (username=admin, password=admin)
+    (
+        "Seed/Update default Admin user (admin / admin)",
+        """
+        INSERT INTO users (
+            id, username, password_hash, phone_number, full_name, email, role, preferred_language, state, district, is_verified
+        ) VALUES (
+            gen_random_uuid(),
+            'admin',
+            '$2b$12$fqqR/HoUt0b4Ht42YMajhun3DCDIyNNIhXvb1ziDHBSUabDWSHtFy',
+            '9999999999',
+            'MoSJE Administrator',
+            'admin@mosje.gov.in',
+            'Admin',
+            'English',
+            'New Delhi',
+            'Central Delhi',
+            TRUE
+        )
+        ON CONFLICT (username) DO UPDATE SET
+            password_hash = '$2b$12$fqqR/HoUt0b4Ht42YMajhun3DCDIyNNIhXvb1ziDHBSUabDWSHtFy',
+            role = 'Admin',
+            is_verified = TRUE;
+
+        INSERT INTO admin_users (
+            id, user_id, department, designation, access_level, created_by
+        )
+        SELECT gen_random_uuid(), id, 'Ministry of Social Justice and Empowerment (MoSJE)', 'Director of Handicrafts & Cluster Welfare', 'Superadmin', 'System'
+        FROM users WHERE username = 'admin'
+        AND id NOT IN (SELECT user_id FROM admin_users);
+        """
+    ),
 ]
 
 
@@ -48,9 +80,9 @@ def run_migrations():
             try:
                 conn.execute(text(sql.strip()))
                 conn.commit()
-                print(f"  ✅ {name}")
+                print(f"  [OK] {name}")
             except Exception as e:
-                print(f"  ⚠️  {name}: {e}")
+                print(f"  [WARN] {name}: {e}")
 
     print("=" * 55)
     print("  Migration complete.")
