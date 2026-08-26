@@ -47,10 +47,10 @@ export default function OnboardingWizard({ onComplete }) {
         {step === 1 && (
           <div>
             <h3>Choose your Language</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px', marginTop: '20px' }}>
               {['English', 'हिंदी', 'বাংলা', 'தமிழ்', 'తెలుగు', 'मराठी'].map(lang => (
                 <div key={lang} className={`lang-tile ${formData.language === lang ? 'selected' : ''}`} onClick={() => { setFormData({...formData, language: lang}); handleNext(); }}>
-                  <span style={{ fontSize: '1.2rem' }}>{lang}</span>
+                  <span style={{ fontSize: '1.15rem' }}>{lang}</span>
                 </div>
               ))}
             </div>
@@ -86,8 +86,8 @@ export default function OnboardingWizard({ onComplete }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
                     <span style={{ fontSize: '2rem' }}>{role.icon}</span>
                     <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{role.r}</div>
-                      <div style={{ color: 'var(--text-secondary)' }}>{role.desc}</div>
+                      <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>{role.r}</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{role.desc}</div>
                     </div>
                   </div>
                 </div>
@@ -103,7 +103,7 @@ export default function OnboardingWizard({ onComplete }) {
         {step === 4 && (
           <div>
             <h3>What do you make?</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))', gap: '10px', marginTop: '20px' }}>
               {[
                 { c: 'Textiles', icon: '🧵' },
                 { c: 'Pottery', icon: '🏺' },

@@ -47,9 +47,6 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
         </div>
 
         {/* Center View Switcher Tabs */}
-        <div className="nav-tabs-group" style={{ display: 'none' }}>
-          {/* Desktop tabs - controlled by media query usually, handled in css */}
-        </div>
         <div className="nav-tabs-group hide-on-mobile">
           {tabs.map(tab => (
             <button
@@ -64,7 +61,7 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
         </div>
 
         {/* Right Actions: Connection Status & Auth */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Status Indicator */}
           <div className="hide-on-mobile" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span className={`status-indicator ${backendStatus.online ? 'online' : 'offline'}`}></span>
@@ -73,20 +70,23 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
 
           {/* User Profile / Auth Button */}
           {isAuthenticated ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="profile-dropdown" style={{ position: 'relative' }}>
-                <button className="badge badge-sm badge-purple" style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', border: 'none', background: 'var(--purple)', color: 'white' }} onClick={() => setActiveTab(role === 'Artisan' ? 'profile' : `${role.toLowerCase()}-dashboard`)}>
-                  <UserCheck size={12} />
-                  <span className="hide-on-mobile">{user?.username || user?.full_name} ({role})</span>
-                </button>
-              </div>
-              <button className="btn btn-secondary btn-sm" onClick={onLogout} title="Sign Out">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                className="badge badge-sm badge-purple"
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', border: 'none', background: 'var(--purple)', color: 'white', padding: '4px 10px' }}
+                onClick={() => setActiveTab(role === 'Artisan' ? 'profile' : `${role.toLowerCase()}-dashboard`)}
+                title="View Profile"
+              >
+                <UserCheck size={13} />
+                <span>{user?.username || user?.full_name || 'User'}</span>
+              </button>
+              <button className="btn btn-secondary btn-sm hide-on-mobile" onClick={onLogout} title="Sign Out">
                 <LogOut size={14} />
-                <span className="hide-on-mobile">Sign Out</span>
+                <span>Sign Out</span>
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
               <button className="btn btn-ghost btn-sm" onClick={onOpenOnboarding}>Register</button>
               <button className="btn btn-primary btn-sm" onClick={onOpenAuth}>
                 <LogIn size={14} />
@@ -95,27 +95,43 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
             </div>
           )}
           
-          <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'none' }}>
-             {mobileMenuOpen ? <X /> : <Menu />}
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle mobile menu"
+          >
+             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
       </div>
       
       {mobileMenuOpen && (
-        <div style={{ background: 'var(--bg-surface)', padding: '16px', borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="mobile-nav-drawer">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
             {tabs.map(tab => (
                <button
                  key={tab.id}
                  className={`nav-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
                  onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
-                 style={{ width: '100%', justifyContent: 'flex-start', padding: '12px' }}
+                 style={{ width: '100%', justifyContent: 'flex-start', padding: '12px 16px', borderRadius: '10px' }}
                >
                  {tab.icon}
-                 <span>{tab.label}</span>
+                 <span style={{ fontSize: '0.95rem' }}>{tab.label}</span>
                </button>
             ))}
           </div>
+
+          {isAuthenticated && (
+            <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Signed in as <strong style={{ color: 'var(--text-primary)' }}>{user?.username || user?.full_name}</strong> ({role})
+              </span>
+              <button className="btn btn-secondary btn-sm" onClick={() => { onLogout(); setMobileMenuOpen(false); }}>
+                <LogOut size={14} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </header>

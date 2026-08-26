@@ -40,38 +40,38 @@ export default function ArtisanDashboard({ onNavigate }) {
   return (
     <div className="container" style={{ padding: '24px 0' }}>
       {/* Welcome Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 14 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.6rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
             🙏 Namaste, <span style={{ color: 'var(--primary)' }}>{data.artisan_name}</span>
           </h2>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: '0.88rem' }}>
             {data.craft_type || 'Artisan'} · {data.is_verified ? '✅ Verified' : '⏳ Pending Verification'}
           </p>
         </div>
         <button className="btn btn-primary btn-md" onClick={() => onNavigate && onNavigate('studio')}>
-          <Plus size={16} style={{ marginRight: 6 }} />
-          Add Product
+          <Plus size={16} />
+          <span>Add Product</span>
         </button>
       </div>
 
       {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 28 }}>
         {statCards.map((card, i) => (
-          <div key={i} className="card" style={{ padding: '20px 24px', borderLeft: `4px solid ${card.color}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ color: card.color }}>{card.icon}</div>
+          <div key={i} className="card" style={{ padding: '16px 18px', borderLeft: `4px solid ${card.color}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ color: card.color, flexShrink: 0 }}>{card.icon}</div>
               <div>
-                <div style={{ fontSize: '1.6rem', fontWeight: 700, lineHeight: 1 }}>{card.value}</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>{card.label}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 1 }}>{card.sub}</div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, lineHeight: 1.1 }}>{card.value}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{card.label}</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 1 }}>{card.sub}</div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="dashboard-two-col" style={{ display: 'grid', gap: 16 }}>
         {/* Top Products */}
         <div className="card" style={{ padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
