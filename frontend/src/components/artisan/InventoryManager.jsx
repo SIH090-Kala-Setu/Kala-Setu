@@ -58,24 +58,30 @@ export default function InventoryManager() {
     }
   };
 
-  const filtered = products.filter(p => 
+  const filtered = products.filter(p =>
     (filter === 'All' || p.status === filter) &&
-    (p.title.toLowerCase().includes(search.toLowerCase()))
+    ((p.title_en || p.title_hi || '').toLowerCase().includes(search.toLowerCase()))
+  );
+
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+      <div className="spinner" /><span style={{ marginLeft: 12, color: 'var(--text-secondary)' }}>Loading inventory...</span>
+    </div>
   );
 
   return (
     <div className="container" style={{ padding: '24px 0' }}>
       <h2>📦 Inventory Manager</h2>
-      
-      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '20px 0' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {['All', 'Active', 'Draft', 'Sold Out', 'Archived'].map(f => (
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '20px 0', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {['All', 'Active', 'Draft', 'Sold Out', 'Archived', 'Pending Review'].map(f => (
             <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter(f)}>{f}</button>
           ))}
         </div>
         <div style={{ position: 'relative' }}>
           <Search size={16} style={{ position: 'absolute', left: 10, top: 10, color: '#888' }} />
-          <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="auth-input" style={{ paddingLeft: '32px', paddingBottom: '8px', paddingTop: '8px', minHeight: '36px' }} />
+          <input type="text" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} className="auth-input" style={{ paddingLeft: '32px', paddingBottom: '8px', paddingTop: '8px', minHeight: '36px' }} />
         </div>
       </div>
 
@@ -95,12 +101,15 @@ export default function InventoryManager() {
               <tr key={p.id}>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {p.image_url && <img src={`http://localhost:8000${p.image_url}`} alt={p.title} style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }} />}
-                    <span style={{ fontWeight: 500 }}>{p.title}</span>
+                    {p.images?.[0] && <img src={p.images[0]} alt={p.title_en} style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }} />}
+                    <div>
+                      <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{p.title_en || '(Untitled)'}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{p.craft_category || ''}</div>
+                    </div>
                   </div>
                 </td>
                 <td>
-                  <select value={p.status || 'Active'} onChange={e => handleStatusChange(p.id, e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', background: 'var(--bg-main)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                  <select value={p.status || 'Active'} onChange={e => handleStatusChange(p.id, e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
                     <option value="Sold Out">Sold Out</option>
@@ -109,12 +118,12 @@ export default function InventoryManager() {
                 </td>
                 <td>
                   <div className="stock-counter">
-                    <button onClick={() => handleStockChange(p.id, p.stock_count - 1)}><Minus size={14} /></button>
-                    <span>{p.stock_count}</span>
-                    <button onClick={() => handleStockChange(p.id, p.stock_count + 1)}><Plus size={14} /></button>
+                    <button onClick={() => handleStockChange(p.id, (p.stock_count || 0) - 1)}><Minus size={14} /></button>
+                    <span>{p.stock_count ?? 0}</span>
+                    <button onClick={() => handleStockChange(p.id, (p.stock_count || 0) + 1)}><Plus size={14} /></button>
                   </div>
                 </td>
-                <td>₹{p.price}</td>
+                <td>₹{p.base_price ?? p.suggested_price ?? '—'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => setQrModal(p.id)} title="QR Code"><QrCode size={16} /></button>

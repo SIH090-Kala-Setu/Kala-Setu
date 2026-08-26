@@ -14,17 +14,23 @@ export default function AggregatorDashboard() {
     Promise.all([getAggregatorDashboard(), getAggregatorArtisans()])
       .then(([dashData, artisansData]) => {
         setData(dashData);
-        setArtisans(artisansData);
+        const list = Array.isArray(artisansData) ? artisansData : (artisansData?.artisans || []);
+        setArtisans(list);
       })
       .catch(err => showToast(err.message, 'error'))
       .finally(() => setLoading(false));
   }, [showToast]);
 
-  if (loading || !data) return <div>Loading...</div>;
+  if (loading || !data) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+      <div className="spinner" />
+      <span style={{ marginLeft: 12, color: 'var(--text-secondary)' }}>Loading aggregator dashboard...</span>
+    </div>
+  );
 
   const handleExport = () => {
     const csvContent = "data:text/csv;charset=utf-8,Name,Craft,Verified,Listings,Needs Support\n" + 
-      artisans.map(a => `${a.name},${a.craft_type},${a.is_verified},${a.listing_count},${a.needs_support}`).join("\n");
+      (artisans || []).map(a => `${a.name || ''},${a.craft_type || ''},${a.is_verified ? 'Yes' : 'No'},${a.listing_count || 0},${a.needs_support ? 'Yes' : 'No'}`).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -34,7 +40,7 @@ export default function AggregatorDashboard() {
     document.body.removeChild(link);
   };
 
-  const clusters = [...new Set(artisans.map(a => a.cluster_name || 'Unassigned'))];
+  const clusters = [...new Set((artisans || []).map(a => a.cluster_name || 'Unassigned'))];
 
   return (
     <div className="container" style={{ padding: '24px 0' }}>

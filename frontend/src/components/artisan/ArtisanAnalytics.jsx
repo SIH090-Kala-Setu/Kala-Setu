@@ -32,7 +32,8 @@ export default function ArtisanAnalytics() {
 
   if (loading || !data) return <div>Loading...</div>;
 
-  const maxViews = Math.max(...(data.product_performance || []).map(p => p.views || 0), 1);
+  const productList = data.all_products || data.product_performance || [];
+  const maxViews = Math.max(...productList.map(p => p.view_count ?? p.views ?? 0), 1);
 
   return (
     <div className="container" style={{ padding: '24px 0' }}>
@@ -44,17 +45,17 @@ export default function ArtisanAnalytics() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', margin: '24px 0' }}>
         <div className="card" style={{ padding: '24px', textAlign: 'center', borderTop: '4px solid #3498DB' }}>
           <Eye size={32} color="#3498DB" style={{ margin: '0 auto 12px' }} />
-          <h3>{data.total_views}</h3>
+          <h3>{data.total_views || 0}</h3>
           <p style={{ color: 'var(--text-secondary)' }}>Total Views</p>
         </div>
         <div className="card" style={{ padding: '24px', textAlign: 'center', borderTop: '4px solid #2ECC71' }}>
           <MessageCircle size={32} color="#2ECC71" style={{ margin: '0 auto 12px' }} />
-          <h3>{data.total_inquiries}</h3>
+          <h3>{data.total_inquiries || 0}</h3>
           <p style={{ color: 'var(--text-secondary)' }}>Total Inquiries</p>
         </div>
         <div className="card" style={{ padding: '24px', textAlign: 'center', borderTop: '4px solid #9B59B6' }}>
           <DollarSign size={32} color="#9B59B6" style={{ margin: '0 auto 12px' }} />
-          <h3>₹{(data.revenue_estimate || 0).toLocaleString()}</h3>
+          <h3>₹{(data.revenue_estimate || 0).toLocaleString('en-IN')}</h3>
           <p style={{ color: 'var(--text-secondary)' }}>Est. Revenue</p>
         </div>
       </div>
@@ -62,16 +63,19 @@ export default function ArtisanAnalytics() {
       <div className="card" style={{ padding: '24px' }}>
         <h4>Performance by Product</h4>
         <div style={{ marginTop: '20px' }}>
-          {data.product_performance?.map(p => (
-            <div key={p.id} className="analytics-bar-row">
-              <div className="analytics-bar-label">{p.title}</div>
-              <div className="analytics-bar-track">
-                <div className="analytics-bar-fill" style={{ width: `${(p.views / maxViews) * 100}%` }}></div>
+          {productList.map(p => {
+            const views = p.view_count ?? p.views ?? 0;
+            return (
+              <div key={p.id || p.product_id} className="analytics-bar-row">
+                <div className="analytics-bar-label">{p.title || p.title_en || '(Untitled)'}</div>
+                <div className="analytics-bar-track">
+                  <div className="analytics-bar-fill" style={{ width: `${(views / maxViews) * 100}%` }}></div>
+                </div>
+                <div className="analytics-bar-value">{views} <Eye size={12} style={{ verticalAlign: 'middle', opacity: 0.7 }} /></div>
               </div>
-              <div className="analytics-bar-value">{p.views} <Eye size={12} style={{ verticalAlign: 'middle', opacity: 0.7 }} /></div>
-            </div>
-          ))}
-          {(!data.product_performance || data.product_performance.length === 0) && (
+            );
+          })}
+          {productList.length === 0 && (
             <p style={{ color: 'var(--text-muted)' }}>No product data yet</p>
           )}
         </div>

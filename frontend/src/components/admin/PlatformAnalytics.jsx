@@ -17,12 +17,24 @@ export default function PlatformAnalytics() {
         getAdminAnalytics(),
         getProducts()
       ]);
+
+      // Normalise regional_breakdown: backend returns [{state, artisan_count}] array
+      // but component needs a plain {stateName: count} dict for Object.entries()
+      if (analyticsData && Array.isArray(analyticsData.regional_breakdown)) {
+        const regionDict = {};
+        analyticsData.regional_breakdown.forEach(r => {
+          if (r.state) regionDict[r.state] = r.artisan_count ?? 0;
+        });
+        analyticsData.regional_breakdown = regionDict;
+      }
+
       setAnalytics(analyticsData);
 
-      // Tally Category counts
+      // Tally Category counts — backend uses craft_category not category
       const counts = {};
       (productsData || []).forEach((p) => {
-        counts[p.category] = (counts[p.category] || 0) + 1;
+        const cat = p.craft_category || p.category;
+        if (cat) counts[cat] = (counts[cat] || 0) + 1;
       });
       const defaultCats = ['Textiles', 'Handicrafts', 'Pottery', 'Jewelry', 'Paintings & Art', 'Woodwork'];
       defaultCats.forEach((c) => {

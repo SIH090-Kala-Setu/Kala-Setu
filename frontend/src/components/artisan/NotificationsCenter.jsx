@@ -81,8 +81,8 @@ export default function NotificationsCenter({ filterType }) {
               <div className="notif-icon">{getIcon(n.type)}</div>
               <div className="notif-body">
                 <div className="notif-title">{n.title}</div>
-                <div className="notif-text">{n.message}</div>
-                <div className="notif-time">{new Date(n.created_at).toLocaleString()}</div>
+                <div className="notif-text">{n.body || n.message || ''}</div>
+                <div className="notif-time">{n.sent_at || n.created_at ? new Date(n.sent_at || n.created_at).toLocaleString() : ''}</div>
               </div>
             </div>
           ))
