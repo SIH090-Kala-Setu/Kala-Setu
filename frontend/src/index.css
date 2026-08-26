@@ -877,4 +877,54 @@ a {
     border-radius: 8px;
 }
 
+/* ===== STATUS BADGES ===== */
+.status-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.status-active { background: #1a3a1a; color: #2ECC71; }
+.status-draft { background: #2d2d0a; color: #F39C12; }
+.status-sold-out { background: #3a1a1a; color: #E74C3C; }
+.status-archived { background: #1a1a1a; color: #7F8C8D; }
+.status-pending-review { background: #1a2a3a; color: #3498DB; }
 
+/* ===== ARTISAN DASHBOARD ===== */
+.quick-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.quick-action-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; transition: border-color 0.2s; }
+.quick-action-btn:hover { border-color: var(--primary); }
+
+/* ===== ANALYTICS BAR CHART ===== */
+.analytics-bar-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.analytics-bar-track { flex: 1; height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; }
+.analytics-bar-fill { height: 100%; border-radius: 4px; background: var(--primary); transition: width 0.4s; }
+.analytics-bar-label { font-size: 0.8rem; color: var(--text-secondary); min-width: 80px; }
+.analytics-bar-value { font-size: 0.8rem; font-weight: 600; min-width: 30px; text-align: right; }
+
+/* ===== INVENTORY MANAGER ===== */
+.inventory-table { width: 100%; border-collapse: collapse; }
+.inventory-table th { text-align: left; font-size: 0.75rem; color: var(--text-secondary); padding: 8px 12px; border-bottom: 1px solid var(--border-color); }
+.inventory-table td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.875rem; vertical-align: middle; }
+.stock-counter { display: flex; align-items: center; gap: 8px; }
+.stock-counter button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-primary); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; }
+.stock-counter span { min-width: 32px; text-align: center; font-weight: 600; }
+
+/* ===== NOTIFICATIONS CENTER ===== */
+.notif-item { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border-color); }
+.notif-item.unread { background: rgba(230, 126, 34, 0.04); border-left: 3px solid var(--primary); padding-left: 10px; }
+.notif-icon { font-size: 1.4rem; min-width: 32px; }
+.notif-body { flex: 1; }
+.notif-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 3px; }
+.notif-text { font-size: 0.8rem; color: var(--text-secondary); }
+.notif-time { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+
+/* ===== ONBOARDING WIZARD ===== */
+.wizard-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.wizard-card { background: var(--bg-surface); border-radius: 20px; padding: 40px; max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
+.wizard-steps { display: flex; gap: 6px; margin-bottom: 32px; }
+.wizard-step-dot { flex: 1; height: 4px; border-radius: 2px; background: var(--border-color); }
+.wizard-step-dot.done { background: var(--primary); }
+.craft-tile, .lang-tile, .role-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: border-color 0.2s; background: var(--bg-surface-elevated); font-size: 0.85rem; }
+.craft-tile.selected, .lang-tile.selected, .role-tile.selected { border-color: var(--primary); background: rgba(230,126,34,0.1); }
+.craft-tile span:first-child, .lang-tile span:first-child, .role-tile span:first-child { font-size: 2rem; }
+
+/* ===== QR MODAL ===== */
+.qr-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.qr-modal-card { background: white; color: #111; border-radius: 16px; padding: 32px; text-align: center; max-width: 320px; }
+.qr-modal-card img { width: 200px; height: 200px; }

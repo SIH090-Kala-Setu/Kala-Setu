@@ -1,9 +1,11 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, status
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, status, Request
+from fastapi.responses import StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Union
 import io
+import csv
+from services.analytics_service import get_artisan_analytics
 import uvicorn
 import uuid
 import datetime
@@ -1444,6 +1446,650 @@ def get_scheme_alert_history(
         }
         for a in scheme.alerts
     ]
+
+# ===== ARTISAN DASHBOARD & PROFILE ENDPOINTS =====
+
+@app.get("/artisan/dashboard")
+def get_artisan_dashboard(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Artisan dashboard — summary cards for listings, inquiries, notifications."""
+    profile = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.user_id == current_user.id
+    ).first()
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artisan profile not found.")
+
+    analytics = get_artisan_analytics(str(profile.id), db)
+
+    pending_inquiries = db.query(models.BuyerInquiry).filter(
+        models.BuyerInquiry.artisan_id == current_user.id,
+        models.BuyerInquiry.status == "Pending"
+    ).count()
+
+    unread_notifications = db.query(models.Notification).filter(
+        models.Notification.user_id == current_user.id,
+        models.Notification.is_read == False
+    ).count()
+
+    exhibition_regs = db.query(models.ExhibitionRegistration).filter(
+        models.ExhibitionRegistration.artisan_id == current_user.id
+    ).order_by(models.ExhibitionRegistration.registered_at.desc()).limit(3).all()
+
+    upcoming_exhibitions = []
+    for reg in exhibition_regs:
+        ex = db.query(models.Exhibition).filter(models.Exhibition.id == reg.exhibition_id).first()
+        if ex:
+            upcoming_exhibitions.append({
+                "id": str(ex.id),
+                "name": ex.name,
+                "location": ex.location,
+                "start_date": str(ex.start_date),
+                "reg_status": reg.status
+            })
+
+    return {
+        "artisan_name": current_user.full_name,
+        "craft_type": profile.craft_type,
+        "is_verified": current_user.is_verified,
+        "preferred_language": current_user.preferred_language,
+        "total_listings": analytics["total_listings"],
+        "active_listings": analytics["active_listings"],
+        "pending_listings": analytics["pending_listings"],
+        "total_views": analytics["total_views"],
+        "total_inquiries": analytics["total_inquiries"],
+        "pending_inquiries": pending_inquiries,
+        "revenue_estimate": analytics["total_revenue_estimate"],
+        "unread_notifications": unread_notifications,
+        "top_products": analytics["top_products"],
+        "upcoming_exhibitions": upcoming_exhibitions,
+    }
+
+
+@app.get("/artisan/profile")
+def get_artisan_profile(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Get full artisan profile including bank & craft details."""
+    profile = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.user_id == current_user.id
+    ).first()
+
+    cluster = None
+    if profile:
+        membership = db.query(models.ClusterArtisan).filter(
+            models.ClusterArtisan.artisan_id == current_user.id
+        ).first()
+        if membership:
+            cluster_obj = db.query(models.Cluster).filter(
+                models.Cluster.id == membership.cluster_id
+            ).first()
+            if cluster_obj:
+                cluster = {"id": str(cluster_obj.id), "name": cluster_obj.cluster_name, "craft": cluster_obj.craft_specialization}
+
+    return {
+        "user_id": str(current_user.id),
+        "full_name": current_user.full_name,
+        "phone_number": current_user.phone_number,
+        "email": current_user.email,
+        "role": current_user.role,
+        "state": current_user.state,
+        "district": current_user.district,
+        "preferred_language": current_user.preferred_language,
+        "is_verified": current_user.is_verified,
+        "craft_type": profile.craft_type if profile else None,
+        "cluster_name": profile.cluster_name if profile else None,
+        "aadhaar_number": profile.aadhaar_number if profile else None,
+        "bank_account": profile.bank_account if profile else None,
+        "ifsc_code": profile.ifsc_code if profile else None,
+        "upi_id": profile.upi_id if profile else None,
+        "govt_scheme_beneficiary": profile.govt_scheme_beneficiary if profile else False,
+        "photo_url": profile.photo_url if profile else None,
+        "cluster": cluster,
+    }
+
+
+@app.put("/artisan/profile")
+def update_artisan_profile(
+    full_name: Optional[str] = Form(None),
+    preferred_language: Optional[str] = Form(None),
+    craft_type: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    district: Optional[str] = Form(None),
+    bank_account: Optional[str] = Form(None),
+    ifsc_code: Optional[str] = Form(None),
+    upi_id: Optional[str] = Form(None),
+    aadhaar_number: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Update artisan profile fields."""
+    if full_name:
+        current_user.full_name = full_name
+    if preferred_language:
+        current_user.preferred_language = preferred_language
+    if state:
+        current_user.state = state
+    if district:
+        current_user.district = district
+
+    profile = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.user_id == current_user.id
+    ).first()
+
+    if not profile:
+        profile = models.ArtisanProfile(user_id=current_user.id)
+        db.add(profile)
+
+    if craft_type:
+        profile.craft_type = craft_type
+    if bank_account:
+        profile.bank_account = bank_account
+    if ifsc_code:
+        profile.ifsc_code = ifsc_code
+    if upi_id:
+        profile.upi_id = upi_id
+    if aadhaar_number:
+        profile.aadhaar_number = aadhaar_number
+
+    db.commit()
+    return {"message": "Profile updated successfully."}
+
+
+# ===== PRODUCT MANAGEMENT ENDPOINTS =====
+
+@app.get("/products/{product_id}", response_model=ProductResponse)
+def get_product_detail(
+    product_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Get single product detail and track view."""
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    # Track view
+    viewer_ip = request.client.host if request.client else None
+    view = models.ProductView(product_id=product.id, viewer_ip=viewer_ip)
+    db.add(view)
+    product.view_count = (product.view_count or 0) + 1
+    db.commit()
+
+    artisan = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.id == product.artisan_id
+    ).first()
+    user = db.query(models.User).filter(
+        models.User.id == artisan.user_id
+    ).first() if artisan else None
+
+    images = db.query(models.ProductImage).filter(
+        models.ProductImage.product_id == product.id
+    ).all()
+    image_urls = [img.enhanced_url or img.original_url for img in images]
+
+    return ProductResponse(
+        id=str(product.id),
+        title_en=product.title_en,
+        title_hi=product.title_hi,
+        description_en=product.description_en or "",
+        description_hi=product.description_hi or "",
+        craft_category=product.craft_category or "",
+        material=product.material or "",
+        base_price=float(product.base_price),
+        suggested_price=float(product.suggested_price) if product.suggested_price else None,
+        stock_count=product.stock_count or 0,
+        status=product.status,
+        artisan_name=user.full_name if user else "Unknown",
+        artisan_state=user.state if user else None,
+        images=image_urls,
+        created_at=product.created_at.isoformat() if product.created_at else "",
+    )
+
+
+@app.delete("/products/{product_id}")
+def delete_product(
+    product_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Archive (soft-delete) or permanently delete a product."""
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    artisan = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.id == product.artisan_id
+    ).first()
+    if not artisan or str(artisan.user_id) != str(current_user.id):
+        if current_user.role not in ["Admin"]:
+            raise HTTPException(status_code=403, detail="Not authorized.")
+
+    product.status = "Archived"
+    db.commit()
+    return {"message": "Product archived successfully.", "id": product_id}
+
+
+@app.put("/products/{product_id}/status")
+def update_product_status(
+    product_id: str,
+    status: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Toggle product status: Active, Draft, Sold Out, Archived, Pending Review"""
+    valid_statuses = ["Active", "Draft", "Sold Out", "Archived", "Pending Review"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Status must be one of: {valid_statuses}")
+
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    product.status = status
+    db.commit()
+    return {"message": f"Product status updated to {status}.", "id": product_id, "status": status}
+
+
+@app.put("/products/{product_id}/stock")
+def update_product_stock(
+    product_id: str,
+    stock_count: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Update product stock count."""
+    if stock_count < 0:
+        raise HTTPException(status_code=400, detail="Stock count cannot be negative.")
+
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    product.stock_count = stock_count
+    if stock_count == 0:
+        product.status = "Sold Out"
+    db.commit()
+    return {"message": "Stock updated.", "id": product_id, "stock_count": stock_count, "status": product.status}
+
+
+@app.get("/products/{product_id}/qr")
+def get_product_qr(
+    product_id: str,
+    db: Session = Depends(get_db)
+):
+    """Generate QR code PNG for product catalog sharing."""
+    import qrcode
+    import io as _io
+    from fastapi.responses import Response as FastAPIResponse
+
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    catalog_url = f"http://localhost:5173/?product={product_id}"
+
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(catalog_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    buffer = _io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return FastAPIResponse(content=buffer.getvalue(), media_type="image/png")
+
+
+# ===== ARTISAN ANALYTICS ENDPOINT =====
+
+@app.get("/artisan/analytics")
+def get_artisan_analytics_endpoint(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Per-product views, inquiries, income summary for the logged-in artisan."""
+    profile = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.user_id == current_user.id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artisan profile not found.")
+
+    return get_artisan_analytics(str(profile.id), db)
+
+
+# ===== ARTISAN REPORT (CSV EXPORT) =====
+
+@app.get("/artisan/report")
+def export_artisan_report(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Export artisan product data as CSV."""
+    profile = db.query(models.ArtisanProfile).filter(
+        models.ArtisanProfile.user_id == current_user.id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artisan profile not found.")
+
+    analytics = get_artisan_analytics(str(profile.id), db)
+    products = analytics["all_products"]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=[
+        "product_id", "title", "status", "stock_count", "base_price",
+        "view_count", "inquiry_count", "completed_orders", "revenue_estimate"
+    ])
+    writer.writeheader()
+    for p in products:
+        writer.writerow(p)
+
+    output.seek(0)
+    filename = f"kala_setu_report_{current_user.username or 'artisan'}_{datetime.datetime.now().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+# ===== BATCH IMAGE ENHANCEMENT =====
+
+@app.post("/enhance/batch")
+async def batch_enhance_images(
+    files: List[UploadFile] = File(...),
+):
+    """Batch AI enhancement for multiple product images."""
+    processor = ImageProcessor()
+    results = []
+
+    for file in files:
+        try:
+            contents = await file.read()
+            result_b64, quality = processor.process_product_image_with_quality(contents)
+            results.append({
+                "filename": file.filename,
+                "success": True,
+                "enhanced_image": result_b64,
+                "quality_score": quality,
+            })
+        except Exception as e:
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": str(e),
+                "enhanced_image": None,
+                "quality_score": None,
+            })
+
+    return {"results": results, "total": len(results), "successful": sum(1 for r in results if r["success"])}
+
+
+# ===== AGGREGATOR DASHBOARD ENDPOINTS =====
+
+@app.get("/aggregator/dashboard")
+def get_aggregator_dashboard(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Aggregator dashboard — clusters managed, artisan status, catalog completion."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator access required.")
+
+    clusters = db.query(models.Cluster).filter(
+        models.Cluster.aggregator_id == current_user.id
+    ).all()
+
+    cluster_summaries = []
+    total_artisans = 0
+    total_active_listings = 0
+    total_pending_inquiries = 0
+
+    for cluster in clusters:
+        memberships = db.query(models.ClusterArtisan).filter(
+            models.ClusterArtisan.cluster_id == cluster.id
+        ).all()
+
+        artisan_details = []
+        for m in memberships:
+            artisan_user = db.query(models.User).filter(models.User.id == m.artisan_id).first()
+            artisan_profile = db.query(models.ArtisanProfile).filter(
+                models.ArtisanProfile.user_id == m.artisan_id
+            ).first()
+
+            listing_count = 0
+            has_active_listing = False
+            if artisan_profile:
+                listing_count = db.query(models.Product).filter(
+                    models.Product.artisan_id == artisan_profile.id
+                ).count()
+                has_active_listing = db.query(models.Product).filter(
+                    models.Product.artisan_id == artisan_profile.id,
+                    models.Product.status == "Active"
+                ).count() > 0
+
+            if artisan_user:
+                artisan_details.append({
+                    "user_id": str(artisan_user.id),
+                    "name": artisan_user.full_name,
+                    "craft_type": artisan_profile.craft_type if artisan_profile else None,
+                    "is_verified": artisan_user.is_verified,
+                    "listing_count": listing_count,
+                    "has_active_listing": has_active_listing,
+                    "needs_support": not has_active_listing,
+                })
+
+        active_in_cluster = sum(1 for a in artisan_details if a["has_active_listing"])
+        total_artisans += len(artisan_details)
+        total_active_listings += active_in_cluster
+
+        cluster_summaries.append({
+            "cluster_id": str(cluster.id),
+            "cluster_name": cluster.cluster_name,
+            "state": cluster.state,
+            "district": cluster.district,
+            "craft_specialization": cluster.craft_specialization,
+            "total_artisans": len(artisan_details),
+            "artisans_with_listings": active_in_cluster,
+            "artisans_needing_support": len(artisan_details) - active_in_cluster,
+            "artisans": artisan_details,
+        })
+
+    return {
+        "aggregator_name": current_user.full_name,
+        "total_clusters": len(clusters),
+        "total_artisans": total_artisans,
+        "total_active_listings": total_active_listings,
+        "total_pending_inquiries": total_pending_inquiries,
+        "clusters": cluster_summaries,
+    }
+
+
+@app.get("/aggregator/artisans")
+def get_aggregator_artisans(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Get all artisans managed under aggregator's clusters."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator access required.")
+
+    clusters = db.query(models.Cluster).filter(
+        models.Cluster.aggregator_id == current_user.id
+    ).all()
+
+    all_artisans = []
+    seen_ids = set()
+
+    for cluster in clusters:
+        memberships = db.query(models.ClusterArtisan).filter(
+            models.ClusterArtisan.cluster_id == cluster.id
+        ).all()
+        for m in memberships:
+            if str(m.artisan_id) in seen_ids:
+                continue
+            seen_ids.add(str(m.artisan_id))
+            artisan_user = db.query(models.User).filter(models.User.id == m.artisan_id).first()
+            artisan_profile = db.query(models.ArtisanProfile).filter(
+                models.ArtisanProfile.user_id == m.artisan_id
+            ).first()
+            if artisan_user:
+                all_artisans.append({
+                    "user_id": str(artisan_user.id),
+                    "name": artisan_user.full_name,
+                    "phone": artisan_user.phone_number,
+                    "state": artisan_user.state,
+                    "district": artisan_user.district,
+                    "craft_type": artisan_profile.craft_type if artisan_profile else None,
+                    "is_verified": artisan_user.is_verified,
+                    "cluster_name": cluster.cluster_name,
+                    "preferred_language": artisan_user.preferred_language,
+                })
+
+    return {"artisans": all_artisans, "total": len(all_artisans)}
+
+
+# ===== BUYER DASHBOARD ENDPOINTS =====
+
+@app.get("/buyer/dashboard")
+def get_buyer_dashboard(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Buyer dashboard — inquiry history and matched artisans."""
+    if current_user.role not in ["Buyer", "Admin"]:
+        raise HTTPException(status_code=403, detail="Buyer access required.")
+
+    inquiries = db.query(models.BuyerInquiry).filter(
+        models.BuyerInquiry.buyer_id == current_user.id
+    ).order_by(models.BuyerInquiry.created_at.desc()).all()
+
+    inquiry_list = []
+    for inq in inquiries:
+        product = db.query(models.Product).filter(models.Product.id == inq.product_id).first()
+        artisan_user = db.query(models.User).filter(models.User.id == inq.artisan_id).first()
+        inquiry_list.append({
+            "inquiry_id": str(inq.id),
+            "product_id": str(inq.product_id),
+            "product_title": product.title_en if product else "Unknown",
+            "artisan_name": artisan_user.full_name if artisan_user else "Unknown",
+            "quantity": inq.quantity,
+            "message": inq.message,
+            "status": inq.status,
+            "created_at": inq.created_at.isoformat() if inq.created_at else "",
+        })
+
+    # Suggested artisans based on craft categories from past inquiries
+    craft_categories = set()
+    for inq in inquiries:
+        product = db.query(models.Product).filter(models.Product.id == inq.product_id).first()
+        if product and product.craft_category:
+            craft_categories.add(product.craft_category)
+
+    suggested_artisans = []
+    if craft_categories:
+        for cat in list(craft_categories)[:3]:
+            profiles = db.query(models.ArtisanProfile).filter(
+                models.ArtisanProfile.craft_type == cat
+            ).limit(3).all()
+            for p in profiles:
+                user = db.query(models.User).filter(models.User.id == p.user_id).first()
+                if user and str(user.id) != str(current_user.id):
+                    suggested_artisans.append({
+                        "user_id": str(user.id),
+                        "name": user.full_name,
+                        "craft_type": p.craft_type,
+                        "state": user.state,
+                        "is_verified": user.is_verified,
+                    })
+
+    pending = sum(1 for i in inquiry_list if i["status"] == "Pending")
+    responded = sum(1 for i in inquiry_list if i["status"] == "Responded")
+    completed = sum(1 for i in inquiry_list if i["status"] == "Completed")
+
+    return {
+        "buyer_name": current_user.full_name,
+        "total_inquiries": len(inquiry_list),
+        "pending_inquiries": pending,
+        "responded_inquiries": responded,
+        "completed_inquiries": completed,
+        "inquiry_history": inquiry_list,
+        "suggested_artisans": suggested_artisans,
+    }
+
+
+# ===== INQUIRY RESPONSE ENDPOINT =====
+
+@app.post("/inquiries/{inquiry_id}/respond")
+def respond_to_inquiry(
+    inquiry_id: str,
+    response_message: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Artisan responds to a buyer inquiry."""
+    inquiry = db.query(models.BuyerInquiry).filter(
+        models.BuyerInquiry.id == inquiry_id
+    ).first()
+    if not inquiry:
+        raise HTTPException(status_code=404, detail="Inquiry not found.")
+
+    if str(inquiry.artisan_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to respond to this inquiry.")
+
+    inquiry.status = "Responded"
+    inquiry.responded_at = datetime.datetime.utcnow()
+
+    # Send notification to buyer
+    notification = models.Notification(
+        user_id=inquiry.buyer_id,
+        title="Inquiry Responded",
+        body=f"{current_user.full_name} has responded to your inquiry: {response_message[:200]}",
+        type="Inquiry",
+        lang_tag="en"
+    )
+    db.add(notification)
+    db.commit()
+
+    return {"message": "Response sent successfully.", "inquiry_id": inquiry_id, "status": "Responded"}
+
+
+# ===== NOTIFICATION MARK-READ ENDPOINT =====
+
+@app.put("/notifications/{notification_id}/read")
+def mark_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Mark a notification as read."""
+    notif = db.query(models.Notification).filter(
+        models.Notification.id == notification_id,
+        models.Notification.user_id == current_user.id
+    ).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found.")
+
+    notif.is_read = True
+    db.commit()
+    return {"message": "Marked as read.", "id": notification_id}
+
+
+@app.put("/notifications/mark-all-read")
+def mark_all_notifications_read(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Mark all notifications as read for current user."""
+    db.query(models.Notification).filter(
+        models.Notification.user_id == current_user.id,
+        models.Notification.is_read == False
+    ).update({"is_read": True})
+    db.commit()
+    return {"message": "All notifications marked as read."}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

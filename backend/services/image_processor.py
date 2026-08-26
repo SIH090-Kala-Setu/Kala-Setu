@@ -176,3 +176,69 @@ class ImageProcessor:
         bg_removed = cls.remove_background(raw_image_bytes)
         enhanced = cls.enhance_and_crop(bg_removed)
         return enhanced
+
+    # Legacy method wrapper
+    @classmethod
+    def process_product_image(cls, raw_image_bytes: bytes) -> bytes:
+        return cls.process_artisan_image(raw_image_bytes)
+
+    def score_image_quality(self, img: object) -> dict:
+        """Score image quality: sharpness, brightness, contrast (0-100 each)."""
+        import cv2
+        import numpy as np
+        from PIL import Image as PILImage
+        
+        try:
+            if not isinstance(img, PILImage.Image):
+                return {"sharpness": 50, "brightness": 50, "contrast": 50, "overall_score": 50, "rating": "Unknown"}
+            
+            # Convert to numpy
+            img_rgb = img.convert("RGB")
+            img_np = np.array(img_rgb)
+            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+            
+            # Sharpness: Laplacian variance (higher = sharper)
+            laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+            sharpness = min(100, int(laplacian_var / 5))  # normalize: 500+ = perfect
+            
+            # Brightness: mean pixel value
+            brightness = int(gray.mean() / 255 * 100)
+            
+            # Contrast: std deviation of pixel values
+            contrast = int(min(gray.std() / 80 * 100, 100))
+            
+            overall = int(sharpness * 0.4 + brightness * 0.3 + contrast * 0.3)
+            
+            return {
+                "sharpness": sharpness,
+                "brightness": brightness,
+                "contrast": contrast,
+                "overall_score": overall,
+                "rating": "Excellent" if overall >= 75 else "Good" if overall >= 50 else "Fair" if overall >= 25 else "Poor"
+            }
+        except Exception:
+            return {"sharpness": 50, "brightness": 50, "contrast": 50, "overall_score": 50, "rating": "Unknown"}
+
+    def process_product_image_with_quality(self, image_bytes: bytes):
+        """Process image and return (base64_result, quality_score)."""
+        from PIL import Image as PILImage
+        import io
+        original_img = PILImage.open(io.BytesIO(image_bytes))
+        quality_before = self.score_image_quality(original_img)
+        # Assuming process_product_image returns bytes, converting to base64 as the instruction states "result_b64"
+        # However, to keep it simple, if process_product_image just returns bytes, we can b64 encode it here.
+        # Actually the instruction expects result_b64, let's just encode it.
+        import base64
+        enhanced_bytes = self.process_product_image(image_bytes)
+        result_b64 = base64.b64encode(enhanced_bytes).decode('utf-8')
+        return result_b64, quality_before
+
+    def process_batch(self, image_files: list) -> list:
+        results = []
+        for f in image_files:
+            try:
+                res_b64, qual = self.process_product_image_with_quality(f)
+                results.append(res_b64)
+            except Exception:
+                results.append(None)
+        return results

@@ -80,6 +80,7 @@ class Product(Base):
     base_price = Column(Numeric(12, 2), nullable=False)
     suggested_price = Column(Numeric(12, 2), nullable=True)
     stock_count = Column(Integer, default=0)
+    view_count = Column(Integer, default=0)
     status = Column(String, default="Active")  # Enum: Active, Draft, Sold Out, Archived, Pending Review
     created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
 
@@ -89,6 +90,7 @@ class Product(Base):
     voice_inputs = relationship("VoiceInput", back_populates="product")
     pricing_suggestions = relationship("PricingSuggestion", back_populates="product")
     inquiries = relationship("BuyerInquiry", back_populates="product")
+    views = relationship("ProductView", back_populates="product")
 
 
 # 4. Product Images Model
@@ -349,4 +351,16 @@ class ExhibitionRegistration(Base):
     # Relationships
     exhibition = relationship("Exhibition", back_populates="registrations")
     artisan = relationship("User", back_populates="exhibition_registrations")
+
+
+# 19. Product Views Model (for per-listing analytics)
+class ProductView(Base):
+    __tablename__ = "product_views"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    viewer_ip = Column(String(45), nullable=True)
+    viewed_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+
+    product = relationship("Product", back_populates="views")
 
