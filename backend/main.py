@@ -498,18 +498,38 @@ def get_me(current_user: models.User = Depends(auth.get_current_user)):
 @app.get("/products", response_model=List[ProductResponse])
 def get_products(
     category: Optional[str] = None,
+    region: Optional[str] = None,
+    material: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(models.Product)
-    # PostgreSQL
-    if category and category != "all" and category != "All":
-        query = query.filter(models.Product.craft_category == category)
+    if category and category.lower() not in ["all", ""]:
+        query = query.filter(models.Product.craft_category.ilike(f"%{category}%"))
+    if material and material.lower() not in ["all", ""]:
+        query = query.filter(models.Product.material.ilike(f"%{material}%"))
+    if min_price is not None and min_price > 0:
+        query = query.filter(models.Product.base_price >= min_price)
+    if max_price is not None and max_price > 0:
+        query = query.filter(models.Product.base_price <= max_price)
+    if region and region.lower() not in ["all", ""]:
+        query = query.join(models.ArtisanProfile, models.Product.artisan_id == models.ArtisanProfile.id)\
+                     .join(models.User, models.ArtisanProfile.user_id == models.User.id)\
+                     .filter(
+                         (models.User.state.ilike(f"%{region}%")) |
+                         (models.User.district.ilike(f"%{region}%")) |
+                         (models.ArtisanProfile.cluster_name.ilike(f"%{region}%"))
+                     )
     if search:
+        search_term = f"%{search.strip()}%"
         query = query.filter(
-            (models.Product.title_en.contains(search)) | 
-            (models.Product.title_hi.contains(search)) | 
-            (models.Product.description_en.contains(search))
+            (models.Product.title_en.ilike(search_term)) | 
+            (models.Product.title_hi.ilike(search_term)) | 
+            (models.Product.description_en.ilike(search_term)) |
+            (models.Product.craft_category.ilike(search_term)) |
+            (models.Product.material.ilike(search_term))
         )
             
     products_list = query.order_by(models.Product.id.desc()).all()

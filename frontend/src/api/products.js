@@ -1,10 +1,14 @@
 import { apiClient } from './client';
 
-export async function getProducts({ category, search } = {}) {
+export async function getProducts({ category, search, region, material, min_price, max_price } = {}) {
   let url = '/products';
   const params = new URLSearchParams();
   if (category && category !== 'All' && category !== 'all') params.append('category', category);
   if (search) params.append('search', search);
+  if (region && region !== 'All' && region !== 'all') params.append('region', region);
+  if (material && material !== 'All' && material !== 'all') params.append('material', material);
+  if (min_price) params.append('min_price', min_price);
+  if (max_price) params.append('max_price', max_price);
 
   const qs = params.toString();
   if (qs) url += `?${qs}`;

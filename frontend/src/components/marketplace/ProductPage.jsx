@@ -475,3 +475,4 @@ export default function ProductPage({ productId, initialProduct = null, onBack }
     </div>
   );
 }
+
