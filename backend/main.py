@@ -38,6 +38,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Initialize service singletons
@@ -108,13 +109,13 @@ class ProductResponse(BaseModel):
     title_hi: str
     description_en: Optional[str] = None
     description_hi: Optional[str] = None
-    category: str
-    materials: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
-    retail_price: float
-    b2b_price: float
-    stock: int
-    status: str
+    category: str = "Handicrafts"
+    materials: Optional[List[str]] = []
+    tags: Optional[List[str]] = []
+    retail_price: float = 0.0
+    b2b_price: Optional[float] = None
+    stock: int = 10
+    status: str = "Active"
     image_url: Optional[str] = None
     artisan_name: Optional[str] = None
     artisan_coop: Optional[str] = None
@@ -261,21 +262,21 @@ def map_product_to_response(product) -> ProductResponse:
 
     return ProductResponse(
         id=str(product.id),
-        title_en=product.title_en,
-        title_hi=product.title_hi,
+        title_en=product.title_en or "",
+        title_hi=product.title_hi or "",
         description_en=product.description_en,
         description_hi=product.description_hi,
         category=product.craft_category or "Handicrafts",
         materials=materials_list,
         tags=[],
-        retail_price=float(product.base_price),
-        b2b_price=float(product.suggested_price) if product.suggested_price else float(product.base_price * 0.85),
-        stock=product.stock_count,
-        status=product.status,
+        retail_price=float(product.base_price or 0.0),
+        b2b_price=float(product.suggested_price) if product.suggested_price else float((product.base_price or 0.0) * 0.85),
+        stock=product.stock_count if product.stock_count is not None else 10,
+        status=product.status or "Active",
         image_url=image_url,
         artisan_name=artisan_name,
         artisan_coop=artisan_coop,
-        artisan_id=str(product.artisan_id)
+        artisan_id=str(product.artisan_id) if product.artisan_id else None
     )
 
 def map_user_to_response(user) -> UserResponse:
@@ -1655,46 +1656,29 @@ def get_product_detail(
     db: Session = Depends(get_db)
 ):
     """Get single product detail and track view."""
-    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    product = None
+    try:
+        product = db.query(models.Product).filter(models.Product.id == uuid.UUID(product_id)).first()
+    except Exception:
+        pass
+
+    if not product:
+        product = db.query(models.Product).filter(models.Product.id == product_id).first()
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found.")
 
     # Track view
-    viewer_ip = request.client.host if request.client else None
-    view = models.ProductView(product_id=product.id, viewer_ip=viewer_ip)
-    db.add(view)
-    product.view_count = (product.view_count or 0) + 1
-    db.commit()
+    try:
+        viewer_ip = request.client.host if request.client else None
+        view = models.ProductView(product_id=product.id, viewer_ip=viewer_ip)
+        db.add(view)
+        product.view_count = (product.view_count or 0) + 1
+        db.commit()
+    except Exception:
+        db.rollback()
 
-    artisan = db.query(models.ArtisanProfile).filter(
-        models.ArtisanProfile.id == product.artisan_id
-    ).first()
-    user = db.query(models.User).filter(
-        models.User.id == artisan.user_id
-    ).first() if artisan else None
-
-    images = db.query(models.ProductImage).filter(
-        models.ProductImage.product_id == product.id
-    ).all()
-    image_urls = [img.enhanced_url or img.original_url for img in images]
-
-    return ProductResponse(
-        id=str(product.id),
-        title_en=product.title_en,
-        title_hi=product.title_hi,
-        description_en=product.description_en or "",
-        description_hi=product.description_hi or "",
-        craft_category=product.craft_category or "",
-        material=product.material or "",
-        base_price=float(product.base_price),
-        suggested_price=float(product.suggested_price) if product.suggested_price else None,
-        stock_count=product.stock_count or 0,
-        status=product.status,
-        artisan_name=user.full_name if user else "Unknown",
-        artisan_state=user.state if user else None,
-        images=image_urls,
-        created_at=product.created_at.isoformat() if product.created_at else "",
-    )
+    return map_product_to_response(product)
 
 
 @app.delete("/products/{product_id}")
@@ -2030,6 +2014,308 @@ def get_aggregator_artisans(
                 })
 
     return {"artisans": all_artisans, "total": len(all_artisans)}
+
+
+# =============================================================================
+# AGGREGATOR ACTIONS & CLUSTER WORKFLOWS
+# =============================================================================
+
+class AggregatorOnboardRequest(BaseModel):
+    full_name: str
+    phone: str
+    craft_type: str
+    cluster_name: Optional[str] = None
+    preferred_language: Optional[str] = "Hindi"
+    state: Optional[str] = None
+    district: Optional[str] = None
+
+@app.post("/aggregator/artisans/onboard")
+def onboard_artisan_assisted(
+    req: AggregatorOnboardRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Assisted registration of low-literacy artisans directly by Cluster Aggregator."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator authorization required.")
+
+    # Check if user already exists
+    existing = db.query(models.User).filter(
+        (models.User.username == req.phone) | (models.User.phone_number == req.phone)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="An artisan with this phone number is already registered.")
+
+    try:
+        new_user = models.User(
+            username=req.phone,
+            phone_number=req.phone,
+            password_hash=auth.get_password_hash("asdfghjkl"),
+            full_name=req.full_name,
+            role="Artisan",
+            state=req.state or current_user.state or "Uttar Pradesh",
+            district=req.district or current_user.district or "Varanasi",
+            preferred_language=req.preferred_language or "Hindi",
+            is_verified=False
+        )
+        db.add(new_user)
+        db.flush()
+
+        new_profile = models.ArtisanProfile(
+            user_id=new_user.id,
+            craft_type=req.craft_type,
+            cluster_name=req.cluster_name or "Co-op"
+        )
+        db.add(new_profile)
+
+        # Link to aggregator's cluster if available
+        cluster = db.query(models.Cluster).filter(
+            models.Cluster.aggregator_id == current_user.id
+        ).first()
+        if not cluster and req.cluster_name:
+            cluster = db.query(models.Cluster).filter(
+                models.Cluster.cluster_name == req.cluster_name
+            ).first()
+
+        if cluster:
+            membership = models.ClusterArtisan(
+                cluster_id=cluster.id,
+                artisan_id=new_user.id
+            )
+            db.add(membership)
+            cluster.total_artisans = (cluster.total_artisans or 0) + 1
+
+        # Add to verification KYC queue
+        verif = models.ArtisanVerification(
+            artisan_id=new_user.id,
+            status="Pending",
+            aadhaar_verified=False,
+            bank_verified=False
+        )
+        db.add(verif)
+
+        db.commit()
+        db.refresh(new_user)
+        return {
+            "message": "Artisan onboarded successfully and linked to cluster.",
+            "user_id": str(new_user.id),
+            "full_name": new_user.full_name,
+            "phone": new_user.phone_number,
+            "craft_type": req.craft_type
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Onboarding failed: {str(e)}")
+
+
+class SchemeRelayRequest(BaseModel):
+    scheme_id: Optional[str] = None
+    target_state: Optional[str] = None
+    target_craft: Optional[str] = None
+    custom_message: Optional[str] = None
+
+@app.post("/aggregator/schemes/relay")
+def relay_scheme_to_cluster(
+    req: SchemeRelayRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Relay government scheme alerts to all artisans within aggregator's cluster."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator authorization required.")
+
+    # Find target artisans in aggregator clusters
+    clusters = db.query(models.Cluster).filter(
+        models.Cluster.aggregator_id == current_user.id
+    ).all()
+    cluster_ids = [c.id for c in clusters]
+
+    member_artisan_ids = []
+    if cluster_ids:
+        memberships = db.query(models.ClusterArtisan).filter(
+            models.ClusterArtisan.cluster_id.in_(cluster_ids)
+        ).all()
+        member_artisan_ids = [m.artisan_id for m in memberships]
+
+    query = db.query(models.User).filter(models.User.role == "Artisan")
+    if member_artisan_ids:
+        query = query.filter(models.User.id.in_(member_artisan_ids))
+    if req.target_state:
+        query = query.filter(models.User.state == req.target_state)
+
+    artisans = query.all()
+
+    # Create notifications for all matched artisans
+    scheme_title = "MoSJE Government Scheme Alert"
+    scheme_body = req.custom_message or f"New welfare & financial support scheme available for {req.target_craft or 'all handicrafts'} artisans in your cluster."
+
+    for artisan in artisans:
+        db.add(models.Notification(
+            user_id=artisan.id,
+            title=scheme_title,
+            body=scheme_body,
+            type="Scheme",
+            lang_tag=artisan.preferred_language or "hi"
+        ))
+
+    db.commit()
+    return {
+        "message": f"Scheme alert broadcasted to {len(artisans)} cluster artisans successfully.",
+        "recipients_count": len(artisans)
+    }
+
+
+class ClusterReportSubmitRequest(BaseModel):
+    cluster_id: Optional[str] = None
+    report_month: Optional[str] = "August 2026"
+    summary: str
+    metrics: Optional[dict] = None
+
+@app.post("/aggregator/reports/submit")
+def submit_cluster_report(
+    req: ClusterReportSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Formally transmit monthly cluster progress report to MoSJE Admin."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator authorization required.")
+
+    # Log to audit trail
+    db.add(models.AuditLog(
+        action=f"Monthly cluster report submitted for {req.report_month} by {current_user.full_name}",
+        entity_type="ClusterReport",
+        change_snapshot={"summary": req.summary, "report_month": req.report_month, "metrics": req.metrics}
+    ))
+
+    # Notify admins
+    admins = db.query(models.User).filter(models.User.role == "Admin").all()
+    for admin in admins:
+        db.add(models.Notification(
+            user_id=admin.id,
+            title=f"Monthly Cluster Report: {req.report_month}",
+            body=f"Aggregator {current_user.full_name} has submitted the monthly report for cluster: {req.summary[:150]}",
+            type="System",
+            lang_tag="en"
+        ))
+
+    db.commit()
+    return {
+        "message": "Monthly cluster report submitted successfully to MoSJE Admin.",
+        "report_month": req.report_month,
+        "submitted_by": current_user.full_name
+    }
+
+
+# =============================================================================
+# CLUSTERS GENERAL ENDPOINTS
+# =============================================================================
+
+@app.get("/clusters")
+def get_all_clusters(db: Session = Depends(get_db)):
+    """List all craft clusters in the platform."""
+    clusters = db.query(models.Cluster).all()
+    results = []
+    for c in clusters:
+        results.append({
+            "id": str(c.id),
+            "cluster_name": c.cluster_name,
+            "state": c.state,
+            "district": c.district,
+            "craft_specialization": c.craft_specialization,
+            "aggregator_id": str(c.aggregator_id) if c.aggregator_id else None,
+            "total_artisans": c.total_artisans or len(c.artisans)
+        })
+    return results
+
+
+@app.get("/clusters/my-clusters")
+def get_my_clusters(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List clusters assigned to the current aggregator."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator access required.")
+
+    clusters = db.query(models.Cluster).filter(models.Cluster.aggregator_id == current_user.id).all()
+    results = []
+    for c in clusters:
+        results.append({
+            "id": str(c.id),
+            "cluster_name": c.cluster_name,
+            "state": c.state,
+            "district": c.district,
+            "craft_specialization": c.craft_specialization,
+            "aggregator_id": str(c.aggregator_id),
+            "total_artisans": len(c.artisans)
+        })
+    return results
+
+
+@app.get("/clusters/{cluster_id}/artisans")
+def get_cluster_artisans_endpoint(
+    cluster_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List all artisans within a cluster."""
+    cluster = db.query(models.Cluster).filter(models.Cluster.id == uuid.UUID(cluster_id)).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found.")
+
+    results = []
+    for m in cluster.artisans:
+        artisan = db.query(models.User).filter(models.User.id == m.artisan_id).first()
+        profile = db.query(models.ArtisanProfile).filter(models.ArtisanProfile.user_id == m.artisan_id).first()
+        if artisan:
+            results.append({
+                "id": str(artisan.id),
+                "username": artisan.username,
+                "full_name": artisan.full_name,
+                "phone_number": artisan.phone_number,
+                "state": artisan.state,
+                "district": artisan.district,
+                "craft_type": profile.craft_type if profile else None,
+                "is_verified": artisan.is_verified,
+                "joined_at": m.joined_at.isoformat() if m.joined_at else ""
+            })
+    return results
+
+
+class AddArtisanToClusterBody(BaseModel):
+    artisan_id: str
+
+@app.post("/clusters/{cluster_id}/artisans")
+def add_artisan_to_cluster_endpoint(
+    cluster_id: str,
+    req: AddArtisanToClusterBody,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Add an artisan to a cluster."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator authorization required.")
+
+    cluster = db.query(models.Cluster).filter(models.Cluster.id == uuid.UUID(cluster_id)).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found.")
+
+    existing = db.query(models.ClusterArtisan).filter(
+        models.ClusterArtisan.cluster_id == cluster.id,
+        models.ClusterArtisan.artisan_id == uuid.UUID(req.artisan_id)
+    ).first()
+    if existing:
+        return {"message": "Artisan is already in this cluster.", "cluster_id": cluster_id}
+
+    membership = models.ClusterArtisan(
+        cluster_id=cluster.id,
+        artisan_id=uuid.UUID(req.artisan_id)
+    )
+    db.add(membership)
+    cluster.total_artisans = (cluster.total_artisans or 0) + 1
+    db.commit()
+    return {"message": "Artisan added to cluster successfully.", "cluster_id": cluster_id, "artisan_id": req.artisan_id}
 
 
 # ===== BUYER DASHBOARD ENDPOINTS =====
