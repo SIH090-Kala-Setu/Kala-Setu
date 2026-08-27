@@ -35,7 +35,7 @@ class Cataloger:
         if self.api_key and not self.api_key.startswith("your_"):
             try:
                 self.client = genai.Client(api_key=self.api_key)
-                self.model_name = "gemini-1.5-flash"
+                self.model_name = "gemini-2.5-flash-lite"
             except Exception as e:
                 print(f"Failed to initialize Gemini client: {e}")
                 self.client = None

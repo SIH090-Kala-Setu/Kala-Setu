@@ -91,7 +91,7 @@ export default function App() {
       <Footer />
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-      {showOnboarding && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
+      {showOnboarding && <OnboardingWizard onComplete={() => setShowOnboarding(false)} onClose={() => setShowOnboarding(false)} />}
     </>
   );
 }

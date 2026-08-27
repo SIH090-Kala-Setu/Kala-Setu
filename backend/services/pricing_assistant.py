@@ -18,7 +18,7 @@ class PricingAssistant:
         self.api_key = os.getenv("GEMINI_API_KEY")
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = "gemini-1.5-flash"
+            self.model_name = "gemini-2.5-flash-lite"
         else:
             self.model = None
 

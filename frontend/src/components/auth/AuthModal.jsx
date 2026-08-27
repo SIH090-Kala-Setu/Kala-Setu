@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import Modal from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { LogIn, UserPlus, ShieldAlert } from 'lucide-react';
+import { LogIn, UserPlus, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose, defaultRole = 'Artisan' }) {
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState(defaultRole);
   const [region, setRegion] = useState('Uttar Pradesh');
   const [preferredLang, setPreferredLang] = useState('Hindi');
@@ -79,16 +80,27 @@ export default function AuthModal({ isOpen, onClose, defaultRole = 'Artisan' }) 
         {/* Password */}
         <div className="form-group">
           <label htmlFor="auth-password">Password</label>
-          <input
-            id="auth-password"
-            type="password"
-            className="auth-input"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete={isRegister ? 'new-password' : 'current-password'}
-          />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              id="auth-password"
+              type={showPassword ? 'text' : 'password'}
+              className="auth-input"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
+              style={{ width: '100%', paddingRight: '44px' }}
+            />
+            <button
+              type="button"
+              className="password-toggle-btn"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
 
         {/* Registration Extra Fields */}

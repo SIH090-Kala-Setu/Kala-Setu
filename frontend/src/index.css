@@ -546,6 +546,23 @@ a {
     color: var(--text-primary);
 }
 
+.password-toggle-btn {
+    position: absolute;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+.password-toggle-btn:hover {
+    color: var(--text-primary);
+}
+
 /* Toast Container */
 .toast-container {
     position: fixed;
