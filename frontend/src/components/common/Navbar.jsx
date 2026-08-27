@@ -15,6 +15,7 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
       { id: 'studio', label: 'AI Studio', icon: <Sparkles size={16} /> },
       { id: 'marketplace', label: 'Marketplace', icon: <Store size={16} /> },
       { id: 'inventory', label: 'Inventory', icon: <Package size={16} /> },
+      { id: 'notifications', label: 'Inquiries & Alerts', icon: <Bell size={16} /> },
       { id: 'analytics', label: 'Analytics', icon: <BarChart2 size={16} /> }
     ],
     Aggregator: [

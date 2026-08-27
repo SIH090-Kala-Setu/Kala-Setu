@@ -148,8 +148,12 @@ class NotificationCreate(BaseModel):
 class NotificationResponse(BaseModel):
     id: Union[uuid.UUID, str, int]
     title: str
-    message: str
-    target_role: str
+    message: Optional[str] = None
+    body: Optional[str] = None
+    type: Optional[str] = "System"
+    is_read: bool = False
+    sent_at: Optional[datetime.datetime] = None
+    target_role: Optional[str] = "All"
     class Config:
         from_attributes = True
 
@@ -330,6 +334,10 @@ def map_notification_to_response(notification) -> NotificationResponse:
         id=str(notification.id),
         title=notification.title,
         message=notification.body,
+        body=notification.body,
+        type=notification.type or "System",
+        is_read=notification.is_read if notification.is_read is not None else False,
+        sent_at=notification.sent_at,
         target_role="All"
     )
 
@@ -625,21 +633,23 @@ def create_inquiry(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
-    # PostgreSQL
-    # Map or find default buyer in PostgreSQL users
-    buyer = db.query(models.User).filter(models.User.role == "Buyer").first()
-    if not buyer:
-        # Create a mock buyer
-        buyer = models.User(
-            username=inquiry.buyer_name.lower().replace(" ", ""),
-            phone_number=f"90000{str(uuid.uuid4().int)[:5]}",
-            full_name=inquiry.buyer_name,
-            email=inquiry.buyer_email,
-            role="Buyer"
-        )
-        db.add(buyer)
-        db.commit()
-        db.refresh(buyer)
+    # Resolve buyer user
+    if current_user:
+        buyer = current_user
+    else:
+        buyer = db.query(models.User).filter(models.User.email == inquiry.buyer_email).first()
+        if not buyer:
+            buyer = models.User(
+                username=inquiry.buyer_name.lower().replace(" ", "") + str(uuid.uuid4().int)[:4],
+                phone_number=f"9{str(uuid.uuid4().int)[:9]}",
+                full_name=inquiry.buyer_name,
+                email=inquiry.buyer_email,
+                role="Buyer",
+                is_verified=True
+            )
+            db.add(buyer)
+            db.commit()
+            db.refresh(buyer)
             
     # Get artisan user id
     artisan_user_id = product.artisan.user_id
@@ -656,8 +666,8 @@ def create_inquiry(
         
     new_notification = models.Notification(
         user_id=artisan_user_id,
-        title="New Bulk Inquiry",
-        body=f"Buyer {inquiry.buyer_name} requested {inquiry.quantity} pcs of '{product.title_en}'",
+        title=f"New Bulk Inquiry ({inquiry.quantity} pcs)",
+        body=f"Buyer {inquiry.buyer_name} ({inquiry.buyer_email}) requested quotation for '{product.title_en}'. Notes: {inquiry.notes or 'No special notes'}",
         type="Inquiry"
     )
     db.add(new_notification)
@@ -667,15 +677,31 @@ def create_inquiry(
     return map_inquiry_to_response(new_inquiry)
 
 @app.get("/inquiries", response_model=List[InquiryResponse])
-def get_inquiries(db: Session = Depends(get_db)):
-    inqs = db.query(models.BuyerInquiry).all()
+def get_inquiries(
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_current_user)
+):
+    if current_user and current_user.role == "Artisan":
+        inqs = db.query(models.BuyerInquiry).filter(models.BuyerInquiry.artisan_id == current_user.id).order_by(models.BuyerInquiry.created_at.desc()).all()
+    elif current_user and current_user.role == "Buyer":
+        inqs = db.query(models.BuyerInquiry).filter(models.BuyerInquiry.buyer_id == current_user.id).order_by(models.BuyerInquiry.created_at.desc()).all()
+    else:
+        inqs = db.query(models.BuyerInquiry).order_by(models.BuyerInquiry.created_at.desc()).all()
     return [map_inquiry_to_response(i) for i in inqs]
 
 # --- Notifications & Admin Oversight ---
 
 @app.get("/notifications", response_model=List[NotificationResponse])
-def get_notifications(db: Session = Depends(get_db)):
-    notis = db.query(models.Notification).order_by(models.Notification.sent_at.desc()).all()
+def get_notifications(
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_current_user)
+):
+    if current_user and current_user.role != "Admin":
+        notis = db.query(models.Notification).filter(
+            models.Notification.user_id == current_user.id
+        ).order_by(models.Notification.sent_at.desc()).all()
+    else:
+        notis = db.query(models.Notification).order_by(models.Notification.sent_at.desc()).all()
     return [map_notification_to_response(n) for n in notis]
 
 @app.post("/notifications", response_model=NotificationResponse)
