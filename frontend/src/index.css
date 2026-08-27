@@ -239,33 +239,37 @@ a {
     z-index: 100;
 }
 .nav-container {
-    max-width: 1240px;
+    max-width: 1380px;
     height: 100%;
     margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
 }
 .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 1.45rem;
+    gap: 8px;
+    font-size: 1.35rem;
     font-weight: 800;
     font-family: var(--font-heading);
     cursor: pointer;
+    flex-shrink: 0;
 }
 .logo .highlight {
     color: var(--primary);
 }
 .nav-tabs-group {
     display: flex;
+    align-items: center;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: 30px;
-    padding: 4px;
-    gap: 4px;
+    padding: 3px 5px;
+    gap: 2px;
+    flex-shrink: 0;
 }
 .nav-tab-btn {
     background: transparent;
@@ -273,14 +277,16 @@ a {
     color: var(--text-secondary);
     font-family: var(--font-heading);
     font-weight: 600;
-    font-size: 0.88rem;
-    padding: 6px 16px;
+    font-size: 0.82rem;
+    padding: 6px 12px;
     border-radius: 20px;
     cursor: pointer;
     transition: var(--transition-smooth);
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
+    white-space: nowrap;
+    line-height: 1.1;
 }
 .nav-tab-btn:hover {
     color: var(--text-primary);

@@ -11,12 +11,12 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
       { id: 'admin', label: 'Admin Console', icon: <ShieldCheck size={16} /> }
     ],
     Artisan: [
-      { id: 'artisan-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
-      { id: 'studio', label: 'AI Studio', icon: <Sparkles size={16} /> },
-      { id: 'marketplace', label: 'Marketplace', icon: <Store size={16} /> },
-      { id: 'inventory', label: 'Inventory', icon: <Package size={16} /> },
-      { id: 'notifications', label: 'Inquiries & Alerts', icon: <Bell size={16} /> },
-      { id: 'analytics', label: 'Analytics', icon: <BarChart2 size={16} /> }
+      { id: 'artisan-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+      { id: 'studio', label: 'AI Studio', icon: <Sparkles size={15} /> },
+      { id: 'marketplace', label: 'Marketplace', icon: <Store size={15} /> },
+      { id: 'inventory', label: 'Inventory', icon: <Package size={15} /> },
+      { id: 'notifications', label: 'Inquiries', icon: <Bell size={15} /> },
+      { id: 'analytics', label: 'Analytics', icon: <BarChart2 size={15} /> }
     ],
     Aggregator: [
       { id: 'aggregator-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
