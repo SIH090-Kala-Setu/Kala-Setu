@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, getApiBase } from './client';
 
 export const getArtisanDashboard = () => apiClient('/artisan/dashboard');
 export const getArtisanProfile = () => apiClient('/artisan/profile');
@@ -29,7 +29,8 @@ export const updateProductPrice = (id, base_price, suggested_price) => {
   return apiClient(`/products/${id}/price`, { method: 'PUT', body: fd });
 };
 
-export const getProductQR = (id) => `http://localhost:8000/products/${id}/qr`;
+export const getProductQR = (id) => `${getApiBase()}/products/${id}/qr`;
+
 
 export const respondToInquiry = (inquiryId, message) => {
   const fd = new FormData();

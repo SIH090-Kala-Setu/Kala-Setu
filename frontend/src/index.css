@@ -731,11 +731,34 @@ a {
 .product-prices {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: auto;
     padding-top: 12px;
     border-top: 1px solid var(--border-color);
 }
+.product-price-block {
+    display: flex;
+    flex-direction: column;
+}
+.product-price-main {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--primary);
+    white-space: nowrap;
+}
+.product-price-b2b {
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    white-space: nowrap;
+}
+.product-card-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
 .product-thumb {
     width: 48px;
     height: 48px;
@@ -1133,21 +1156,34 @@ a {
 
     /* Product Grid — 2-column e-commerce style on mobile */
     .product-grid {
-        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 14px;
     }
     .product-img-wrapper {
-        height: 140px;
+        height: 160px;
     }
     .product-details {
         padding: 12px 10px;
     }
     .product-title {
-        font-size: 0.88rem;
+        font-size: 0.9rem;
     }
     .product-craft {
         font-size: 0.72rem;
     }
+    .product-prices {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .product-card-actions {
+        width: 100%;
+    }
+    .product-card-actions .inquiry-action-btn {
+        flex: 1;
+        justify-content: center;
+    }
+
 
     /* Buttons */
     .btn-md {
@@ -1191,8 +1227,24 @@ a {
     }
 
     /* Table Scrollability Container */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: var(--border-radius-md);
+        border: 1px solid var(--border-color);
+        margin-bottom: 16px;
+    }
     .card table, .inventory-table, .data-table {
         min-width: 480px;
+    }
+
+    /* Form inputs and buttons touch target sizing */
+    input, select, textarea {
+        font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+    }
+    .auth-input, .form-control {
+        min-height: 44px;
     }
 
     /* Filter Button Group Scrollable on Mobile */
@@ -1207,7 +1259,24 @@ a {
     }
     .filter-btn {
         white-space: nowrap;
-        padding: 6px 10px;
+        padding: 8px 14px;
+        min-height: 38px;
+    }
+
+    /* Onboarding wizard tiles responsive grid */
+    .wizard-card {
+        padding: 24px 16px;
+        border-radius: var(--border-radius-md);
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+    .wizard-steps {
+        margin-bottom: 20px;
+    }
+    .wizard-grid-2col {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
     }
 
     /* Footer */
@@ -1230,4 +1299,8 @@ a {
     .quick-action-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+    .wizard-grid-2col {
+        grid-template-columns: 1fr;
+    }
 }
+

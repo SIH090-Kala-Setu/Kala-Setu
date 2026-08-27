@@ -88,7 +88,7 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '6px' }}>
-              <button className="btn btn-ghost btn-sm" onClick={onOpenOnboarding}>Register</button>
+              <button className="btn btn-ghost btn-sm hide-on-mobile" onClick={onOpenOnboarding}>Register</button>
               <button className="btn btn-primary btn-sm" onClick={onOpenAuth}>
                 <LogIn size={14} />
                 <span>Sign In</span>
@@ -122,6 +122,18 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
             ))}
           </div>
 
+          {!isAuthenticated && (
+            <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '8px' }}>
+              <button className="btn btn-secondary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onOpenOnboarding(); setMobileMenuOpen(false); }}>
+                Register
+              </button>
+              <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onOpenAuth(); setMobileMenuOpen(false); }}>
+                <LogIn size={14} />
+                <span>Sign In</span>
+              </button>
+            </div>
+          )}
+
           {isAuthenticated && (
             <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -135,6 +147,7 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
           )}
         </div>
       )}
+
     </header>
   );
 }

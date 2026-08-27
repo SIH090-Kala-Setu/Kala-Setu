@@ -1,5 +1,14 @@
 // API Client with Auth Token Header Interceptor & Error Parsing
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const getApiBase = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    return `http://${window.location.hostname}:8000`;
+  }
+  return 'http://localhost:8000';
+};
+
+const API_BASE = getApiBase();
+
 
 export async function apiClient(endpoint, { body, ...customConfig } = {}) {
   const token = localStorage.getItem('artisan_token');

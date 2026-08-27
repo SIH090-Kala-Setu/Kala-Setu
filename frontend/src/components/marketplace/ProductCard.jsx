@@ -63,16 +63,16 @@ export default function ProductCard({ product, onOpenInquiry, onSelectProduct })
         </p>
 
         <div className="product-prices">
-          <div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary)' }}>
-              ₹ {retailVal}
+          <div className="product-price-block">
+            <div className="product-price-main">
+              ₹{retailVal}
             </div>
-            <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-              B2B: ₹ {b2bVal}
-            </small>
+            <div className="product-price-b2b">
+              B2B: ₹{b2bVal}
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="product-card-actions">
             <button
               className="btn btn-secondary btn-sm"
               onClick={(e) => {
@@ -80,7 +80,7 @@ export default function ProductCard({ product, onOpenInquiry, onSelectProduct })
                 if (onSelectProduct) onSelectProduct(product);
               }}
               title="View Product Details"
-              style={{ padding: '6px 10px' }}
+              style={{ padding: '6px 10px', minHeight: '36px' }}
             >
               <Eye size={14} />
             </button>
@@ -91,6 +91,7 @@ export default function ProductCard({ product, onOpenInquiry, onSelectProduct })
                 if (onOpenInquiry) onOpenInquiry(product);
               }}
               title="Submit Bulk Quotation Inquiry"
+              style={{ minHeight: '36px' }}
             >
               <Send size={14} />
               <span>Inquire</span>
@@ -101,3 +102,4 @@ export default function ProductCard({ product, onOpenInquiry, onSelectProduct })
     </div>
   );
 }
+
