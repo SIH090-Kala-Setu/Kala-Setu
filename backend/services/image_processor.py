@@ -78,7 +78,14 @@ class ImageProcessor:
     def enhance_and_crop(cls, image_bytes: bytes) -> bytes:
         """
         Takes image bytes with transparent background, finds the non-transparent bounding box,
-        crops it, centers it in a square canvas, and enhances contrast/brightness using CLAHE.
+        crops it, centers it in a square canvas, and enhances the subject using a mask-aware
+        pipeline (unsharp mask + vibrance boost) applied ONLY to opaque pixels.
+
+        WHY NOT CLAHE:
+        CLAHE splits the image into tiles and equalizes each tile's histogram independently.
+        When applied to a transparent-background image, the black/zero pixels in transparent
+        areas contaminate every tile's histogram, producing a "halo blur" effect around
+        subject edges. This fix operates exclusively on the opaque subject pixels.
         """
         try:
             nparr = np.frombuffer(image_bytes, np.uint8)
@@ -87,27 +94,24 @@ class ImageProcessor:
             if img is None:
                 return image_bytes
 
-            # Check if image has alpha channel
+            # No alpha channel — enhance as plain RGB
             if len(img.shape) < 3 or img.shape[2] < 4:
-                # If no alpha, enhance RGB directly
                 return cls._enhance_rgb_only(img)
 
-            # Extract the alpha channel to find foreground bounding box
+            # ── 1. Find opaque subject bounding box ──────────────────────────
             alpha = img[:, :, 3]
             pts = np.argwhere(alpha > 10)
 
             if len(pts) == 0:
-                # Completely transparent image fallback
-                return image_bytes
+                return image_bytes  # fully transparent fallback
 
-            # Bounding box of the craft item
             y1, x1 = pts.min(axis=0)
             y2, x2 = pts.max(axis=0)
 
             cropped = img[y1:y2 + 1, x1:x2 + 1]
             h, w = cropped.shape[:2]
 
-            # Add 5% margin around the subject
+            # ── 2. Center-pad subject onto a square canvas with 5% margin ────
             margin = int(max(h, w) * 0.05)
             size = max(h, w) + (margin * 2)
 
@@ -116,28 +120,42 @@ class ImageProcessor:
             x_offset = (size - w) // 2
             square[y_offset:y_offset + h, x_offset:x_offset + w] = cropped
 
-            # Enhance RGB channels using CLAHE
-            bgr = square[:, :, :3]
-            alpha_channel = square[:, :, 3]
+            alpha_channel = square[:, :, 3]             # shape (H, W)
+            opaque_mask   = alpha_channel > 10           # boolean mask of subject pixels
 
-            lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
-            l, a, b = cv2.split(lab)
+            bgr = square[:, :, :3].astype(np.float32)   # work in float for precision
 
-            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-            cl = clahe.apply(l)
+            # ── 3. Unsharp mask — sharpens only the subject ──────────────────
+            #    Blur → subtract → add scaled back. Transparent pixels never
+            #    contribute to the convolution neighbourhood.
+            blurred = cv2.GaussianBlur(bgr, (0, 0), sigmaX=1.2)
+            unsharp = cv2.addWeighted(bgr, 1.45, blurred, -0.45, 0)
 
-            limg = cv2.merge((cl, a, b))
-            enhanced_bgr = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+            # ── 4. Vibrance / warm-tone boost in LAB (on opaque pixels only) ─
+            bgr_uint8 = np.clip(unsharp, 0, 255).astype(np.uint8)
+            lab = cv2.cvtColor(bgr_uint8, cv2.COLOR_BGR2LAB).astype(np.int16)
+
+            # Mild luminance lift (+6) and chroma boost on a & b channels (+4%)
+            lab[:, :, 0] = np.clip(lab[:, :, 0] + 6,  0, 255)
+            lab[:, :, 1] = np.clip(lab[:, :, 1].astype(np.float32) * 1.04, 0, 255).astype(np.int16)
+            lab[:, :, 2] = np.clip(lab[:, :, 2].astype(np.float32) * 1.04, 0, 255).astype(np.int16)
+
+            enhanced_bgr = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+
+            # ── 5. Recompose: write enhanced pixels ONLY where opaque ─────────
+            #    Transparent areas remain exactly 0 — no halo contamination.
+            result_bgr = bgr_uint8.copy()
+            result_bgr[opaque_mask] = enhanced_bgr[opaque_mask]
 
             enhanced_square = cv2.merge((
-                enhanced_bgr[:, :, 0],
-                enhanced_bgr[:, :, 1],
-                enhanced_bgr[:, :, 2],
+                result_bgr[:, :, 0],
+                result_bgr[:, :, 1],
+                result_bgr[:, :, 2],
                 alpha_channel
             ))
 
-            # Resize to standard e-commerce dimension (800x800)
-            final_img = cv2.resize(enhanced_square, (800, 800), interpolation=cv2.INTER_AREA)
+            # ── 6. Resize to standard 800×800 e-commerce format ─────────────
+            final_img = cv2.resize(enhanced_square, (800, 800), interpolation=cv2.INTER_LANCZOS4)
 
             is_success, buffer = cv2.imencode(".png", final_img)
             if not is_success:
@@ -154,14 +172,24 @@ class ImageProcessor:
 
     @staticmethod
     def _enhance_rgb_only(img: np.ndarray) -> bytes:
-        """Helper to enhance standard RGB images without alpha channel."""
+        """
+        Enhance a plain RGB image (no alpha) using unsharp mask + mild vibrance.
+        CLAHE is NOT used — it over-processes uniform backgrounds.
+        """
         try:
-            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-            l, a, b = cv2.split(lab)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            cl = clahe.apply(l)
-            enhanced = cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
-            resized = cv2.resize(enhanced, (800, 800), interpolation=cv2.INTER_AREA)
+            # Unsharp mask for sharpness
+            blurred  = cv2.GaussianBlur(img.astype(np.float32), (0, 0), sigmaX=1.2)
+            unsharp  = cv2.addWeighted(img.astype(np.float32), 1.4, blurred, -0.4, 0)
+            sharpened = np.clip(unsharp, 0, 255).astype(np.uint8)
+
+            # Mild vibrance lift in LAB
+            lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB).astype(np.int16)
+            lab[:, :, 0] = np.clip(lab[:, :, 0] + 5,  0, 255)
+            lab[:, :, 1] = np.clip(lab[:, :, 1].astype(np.float32) * 1.03, 0, 255).astype(np.int16)
+            lab[:, :, 2] = np.clip(lab[:, :, 2].astype(np.float32) * 1.03, 0, 255).astype(np.int16)
+            enhanced = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+
+            resized = cv2.resize(enhanced, (800, 800), interpolation=cv2.INTER_LANCZOS4)
             _, buffer = cv2.imencode(".png", resized)
             return buffer.tobytes()
         except Exception:
