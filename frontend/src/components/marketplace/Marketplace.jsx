@@ -5,7 +5,7 @@ import InquiryModal from './InquiryModal';
 import { useToast } from '../../context/ToastContext';
 import { Search, Filter, ShoppingBag } from 'lucide-react';
 
-export default function Marketplace() {
+export default function Marketplace({ onSelectProduct }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -93,6 +93,7 @@ export default function Marketplace() {
               key={p.id}
               product={p}
               onOpenInquiry={(prod) => setSelectedProductForInquiry(prod)}
+              onSelectProduct={onSelectProduct}
             />
           ))}
         </div>
@@ -107,4 +108,3 @@ export default function Marketplace() {
     </div>
   );
 }
-

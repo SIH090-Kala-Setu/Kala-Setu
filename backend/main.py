@@ -1716,6 +1716,39 @@ def update_product_stock(
     return {"message": "Stock updated.", "id": product_id, "stock_count": stock_count, "status": product.status}
 
 
+@app.put("/products/{product_id}/price")
+def update_product_price(
+    product_id: str,
+    base_price: float = Form(...),
+    suggested_price: Optional[float] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Update product price."""
+    if base_price < 0:
+        raise HTTPException(status_code=400, detail="Price cannot be negative.")
+
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    artisan = db.query(models.ArtisanProfile).filter(models.ArtisanProfile.id == product.artisan_id).first()
+    if not artisan or str(artisan.user_id) != str(current_user.id):
+        if current_user.role not in ["Admin"]:
+            raise HTTPException(status_code=403, detail="Not authorized to edit this product.")
+
+    product.base_price = base_price
+    if suggested_price is not None and suggested_price > 0:
+        product.suggested_price = suggested_price
+    db.commit()
+    return {
+        "message": "Price updated successfully.",
+        "id": product_id,
+        "base_price": float(product.base_price),
+        "suggested_price": float(product.suggested_price) if product.suggested_price else None
+    }
+
+
 @app.get("/products/{product_id}/qr")
 def get_product_qr(
     product_id: str,

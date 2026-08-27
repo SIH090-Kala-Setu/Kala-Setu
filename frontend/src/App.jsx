@@ -6,6 +6,7 @@ import AuthModal from './components/auth/AuthModal';
 import AdminDashboard from './components/admin/AdminDashboard';
 import StudioWorkspace from './components/studio/StudioWorkspace';
 import Marketplace from './components/marketplace/Marketplace';
+import ProductPage from './components/marketplace/ProductPage';
 import ArtisanDashboard from './components/artisan/ArtisanDashboard';
 import ArtisanProfile from './components/artisan/ArtisanProfile';
 import InventoryManager from './components/artisan/InventoryManager';
@@ -34,18 +35,52 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(getDefaultTab());
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProductId, setSelectedProductId] = useState(null);
+
+  // Check URL query parameters for QR code direct catalog links (?product=ID)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prodId = params.get('product');
+    if (prodId) {
+      setSelectedProductId(prodId);
+    }
+  }, []);
 
   useEffect(() => {
     setActiveTab(getDefaultTab());
   }, [role]);
 
-  const navigate = (tab) => setActiveTab(tab);
+  const navigate = (tab) => {
+    setSelectedProduct(null);
+    setSelectedProductId(null);
+    setActiveTab(tab);
+  };
+
+  const handleSelectProduct = (product) => {
+    setSelectedProduct(product);
+    setSelectedProductId(product.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackFromProduct = () => {
+    setSelectedProduct(null);
+    setSelectedProductId(null);
+    // Remove query param from URL if present
+    if (window.location.search.includes('product=')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  };
 
   return (
     <>
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setSelectedProduct(null);
+          setSelectedProductId(null);
+          setActiveTab(tab);
+        }}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenOnboarding={() => setShowOnboarding(true)}
         user={user}
@@ -54,37 +89,48 @@ export default function App() {
       />
 
       <main className="main-layout">
-        {/* ADMIN */}
-        {isAdmin && activeTab === 'admin' && <AdminDashboard />}
+        {/* DEDICATED SEPARATE PRODUCT PAGE */}
+        {(selectedProduct || selectedProductId) ? (
+          <ProductPage
+            productId={selectedProductId || selectedProduct?.id}
+            initialProduct={selectedProduct}
+            onBack={handleBackFromProduct}
+          />
+        ) : (
+          <>
+            {/* ADMIN */}
+            {isAdmin && activeTab === 'admin' && <AdminDashboard />}
 
-        {/* ARTISAN */}
-        {isArtisan && activeTab === 'artisan-dashboard' && <ArtisanDashboard onNavigate={navigate} />}
-        {isArtisan && activeTab === 'studio' && <StudioWorkspace onProductCreated={() => navigate('marketplace')} />}
-        {isArtisan && activeTab === 'inventory' && <InventoryManager />}
-        {isArtisan && activeTab === 'analytics' && <ArtisanAnalytics />}
-        {isArtisan && activeTab === 'profile' && <ArtisanProfile />}
-        {isArtisan && activeTab === 'notifications' && <NotificationsCenter />}
-        {isArtisan && activeTab === 'marketplace' && <Marketplace />}
-        {isArtisan && activeTab === 'inquiries' && <NotificationsCenter filterType="Inquiry" />}
+            {/* ARTISAN */}
+            {isArtisan && activeTab === 'artisan-dashboard' && <ArtisanDashboard onNavigate={navigate} />}
+            {isArtisan && activeTab === 'studio' && <StudioWorkspace onProductCreated={() => navigate('inventory')} />}
+            {isArtisan && activeTab === 'inventory' && <InventoryManager />}
+            {isArtisan && activeTab === 'analytics' && <ArtisanAnalytics />}
+            {isArtisan && activeTab === 'profile' && <ArtisanProfile />}
+            {isArtisan && activeTab === 'notifications' && <NotificationsCenter />}
+            {isArtisan && activeTab === 'marketplace' && <Marketplace onSelectProduct={handleSelectProduct} />}
+            {isArtisan && activeTab === 'inquiries' && <NotificationsCenter filterType="Inquiry" />}
 
-        {/* AGGREGATOR */}
-        {isAggregator && activeTab === 'aggregator-dashboard' && <AggregatorDashboard />}
-        {isAggregator && activeTab === 'marketplace' && <Marketplace />}
+            {/* AGGREGATOR */}
+            {isAggregator && activeTab === 'aggregator-dashboard' && <AggregatorDashboard />}
+            {isAggregator && activeTab === 'marketplace' && <Marketplace onSelectProduct={handleSelectProduct} />}
 
-        {/* BUYER */}
-        {isBuyer && activeTab === 'buyer-dashboard' && <BuyerDashboard />}
-        {isBuyer && activeTab === 'marketplace' && <Marketplace />}
+            {/* BUYER */}
+            {isBuyer && activeTab === 'buyer-dashboard' && <BuyerDashboard />}
+            {isBuyer && activeTab === 'marketplace' && <Marketplace onSelectProduct={handleSelectProduct} />}
 
-        {/* UNAUTHENTICATED */}
-        {!user && <Marketplace />}
+            {/* UNAUTHENTICATED */}
+            {!user && <Marketplace onSelectProduct={handleSelectProduct} />}
 
-        {/* ADMIN ACCESS DENIED */}
-        {activeTab === 'admin' && !isAdmin && (
-          <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '14px' }}>🛡️</div>
-            <h3>MoSJE Administrative Access Required</h3>
-            <button className="btn btn-primary btn-md" onClick={() => setIsAuthOpen(true)}>Sign In as Administrator</button>
-          </div>
+            {/* ADMIN ACCESS DENIED */}
+            {activeTab === 'admin' && !isAdmin && (
+              <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '14px' }}>🛡️</div>
+                <h3>MoSJE Administrative Access Required</h3>
+                <button className="btn btn-primary btn-md" onClick={() => setIsAuthOpen(true)}>Sign In as Administrator</button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

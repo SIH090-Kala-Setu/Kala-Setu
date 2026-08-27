@@ -17,6 +17,14 @@ export const updateProductStock = (id, stock_count) => {
   fd.append('stock_count', stock_count);
   return apiClient(`/products/${id}/stock`, { method: 'PUT', body: fd });
 };
+export const updateProductPrice = (id, base_price, suggested_price) => {
+  const fd = new FormData();
+  fd.append('base_price', base_price);
+  if (suggested_price !== undefined && suggested_price !== null) {
+    fd.append('suggested_price', suggested_price);
+  }
+  return apiClient(`/products/${id}/price`, { method: 'PUT', body: fd });
+};
 export const getProductQR = (id) => `http://localhost:8000/products/${id}/qr`;
 export const respondToInquiry = (inquiryId, message) => {
   const fd = new FormData();
