@@ -78,7 +78,13 @@ class ImageProcessor:
     def enhance_and_crop(cls, image_bytes: bytes) -> bytes:
         """
         Takes image bytes with transparent background, finds the non-transparent bounding box,
-        crops it, centers it in a square canvas, and enhances contrast/brightness using CLAHE.
+        crops it, centers it in a square canvas, and applies sharpness-preserving enhancement.
+
+        Enhancement pipeline (avoids CLAHE blurring):
+        1. Gentle gamma correction to lift shadows (gamma=0.92)
+        2. Unsharp masking on foreground pixels only (sharpens without blurring edges)
+        3. Vibrance boost via saturation bump in HSV (not affecting luminance)
+        4. INTER_LANCZOS4 for pixel-quality resizing
         """
         try:
             nparr = np.frombuffer(image_bytes, np.uint8)
@@ -87,27 +93,25 @@ class ImageProcessor:
             if img is None:
                 return image_bytes
 
-            # Check if image has alpha channel
+            # If no alpha channel, enhance RGB directly
             if len(img.shape) < 3 or img.shape[2] < 4:
-                # If no alpha, enhance RGB directly
                 return cls._enhance_rgb_only(img)
 
-            # Extract the alpha channel to find foreground bounding box
+            # Extract alpha channel
             alpha = img[:, :, 3]
             pts = np.argwhere(alpha > 10)
 
             if len(pts) == 0:
-                # Completely transparent image fallback
                 return image_bytes
 
-            # Bounding box of the craft item
+            # Bounding box of the craft subject
             y1, x1 = pts.min(axis=0)
             y2, x2 = pts.max(axis=0)
 
             cropped = img[y1:y2 + 1, x1:x2 + 1]
             h, w = cropped.shape[:2]
 
-            # Add 5% margin around the subject
+            # 5% margin around subject on a square canvas
             margin = int(max(h, w) * 0.05)
             size = max(h, w) + (margin * 2)
 
@@ -116,28 +120,43 @@ class ImageProcessor:
             x_offset = (size - w) // 2
             square[y_offset:y_offset + h, x_offset:x_offset + w] = cropped
 
-            # Enhance RGB channels using CLAHE
-            bgr = square[:, :, :3]
+            bgr = square[:, :, :3].astype(np.float32)
             alpha_channel = square[:, :, 3]
 
-            lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
-            l, a, b = cv2.split(lab)
+            # Foreground mask for targeted enhancement (avoid enhancing transparent borders)
+            fg_mask = (alpha_channel > 10).astype(np.float32)[:, :, np.newaxis]
 
-            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-            cl = clahe.apply(l)
+            # Step 1: Gentle gamma correction (gamma < 1 lifts shadows, preserves highlights)
+            gamma = 0.92
+            bgr_gamma = np.clip(np.power(bgr / 255.0, gamma) * 255.0, 0, 255)
 
-            limg = cv2.merge((cl, a, b))
-            enhanced_bgr = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+            # Step 2: Unsharp masking (sharpens edges without blurring)
+            # Blur radius=0 means "don't blur" — use a gentle 1px Gaussian
+            blurred = cv2.GaussianBlur(bgr_gamma, (0, 0), sigmaX=1.2)
+            # amount=0.6 keeps sharpening subtle (0=none, 1=strong)
+            sharpened = cv2.addWeighted(bgr_gamma, 1.6, blurred, -0.6, 0)
+            sharpened = np.clip(sharpened, 0, 255)
+
+            # Step 3: Gentle vibrance boost via HSV saturation — only on foreground
+            sharpened_uint8 = sharpened.astype(np.uint8)
+            hsv = cv2.cvtColor(sharpened_uint8, cv2.COLOR_BGR2HSV).astype(np.float32)
+            # Boost saturation by 12% (soft, not oversaturated)
+            hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.12, 0, 255)
+            vibrant_bgr = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR).astype(np.float32)
+
+            # Blend: apply enhancement only to foreground pixels
+            final_bgr = (vibrant_bgr * fg_mask + bgr * (1 - fg_mask)).astype(np.uint8)
 
             enhanced_square = cv2.merge((
-                enhanced_bgr[:, :, 0],
-                enhanced_bgr[:, :, 1],
-                enhanced_bgr[:, :, 2],
+                final_bgr[:, :, 0],
+                final_bgr[:, :, 1],
+                final_bgr[:, :, 2],
                 alpha_channel
             ))
 
-            # Resize to standard e-commerce dimension (800x800)
-            final_img = cv2.resize(enhanced_square, (800, 800), interpolation=cv2.INTER_AREA)
+            # Resize to 800x800 using LANCZOS for clean quality (no softening)
+            interp = cv2.INTER_LANCZOS4 if size < 800 else cv2.INTER_AREA
+            final_img = cv2.resize(enhanced_square, (800, 800), interpolation=interp)
 
             is_success, buffer = cv2.imencode(".png", final_img)
             if not is_success:
@@ -154,14 +173,30 @@ class ImageProcessor:
 
     @staticmethod
     def _enhance_rgb_only(img: np.ndarray) -> bytes:
-        """Helper to enhance standard RGB images without alpha channel."""
+        """
+        Enhance standard RGB images without alpha channel.
+        Uses unsharp mask + vibrance instead of CLAHE to avoid blurring.
+        """
         try:
-            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-            l, a, b = cv2.split(lab)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            cl = clahe.apply(l)
-            enhanced = cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
-            resized = cv2.resize(enhanced, (800, 800), interpolation=cv2.INTER_AREA)
+            bgr = img.astype(np.float32)
+
+            # Gamma correction
+            bgr_gamma = np.clip(np.power(bgr / 255.0, 0.92) * 255.0, 0, 255)
+
+            # Unsharp mask
+            blurred = cv2.GaussianBlur(bgr_gamma, (0, 0), sigmaX=1.2)
+            sharpened = np.clip(cv2.addWeighted(bgr_gamma, 1.6, blurred, -0.6, 0), 0, 255).astype(np.uint8)
+
+            # Saturation boost
+            hsv = cv2.cvtColor(sharpened, cv2.COLOR_BGR2HSV).astype(np.float32)
+            hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.12, 0, 255)
+            vibrant = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+            # Resize
+            h, w = vibrant.shape[:2]
+            interp = cv2.INTER_LANCZOS4 if max(h, w) < 800 else cv2.INTER_AREA
+            resized = cv2.resize(vibrant, (800, 800), interpolation=interp)
+
             _, buffer = cv2.imencode(".png", resized)
             return buffer.tobytes()
         except Exception:
