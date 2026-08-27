@@ -15,7 +15,7 @@
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.8.0-5C3EE8.svg?style=flat&logo=opencv&logoColor=white)
 ![ONNX Runtime](https://img.shields.io/badge/ONNX-u2netp%20(4.5MB)-005CED.svg?style=flat&logo=onnx&logoColor=white)
 ![JWT Auth](https://img.shields.io/badge/Security-JWT%20%2B%20Bcrypt-000000.svg?style=flat&logo=jsonwebtokens&logoColor=white)
-![Endpoints](https://img.shields.io/badge/API%20Endpoints-59-E67E22.svg?style=flat)
+![Endpoints](https://img.shields.io/badge/API%20Endpoints-62+-E67E22.svg?style=flat)
 ![Components](https://img.shields.io/badge/React%20Components-29-61DAFB.svg?style=flat&logo=react)
 
 </div>
@@ -27,6 +27,10 @@
 1. [Problem Statement & Background](#-problem-statement--background)
 2. [Platform Architecture & 9-Module System](#-platform-architecture--9-module-system)
 3. [User Roles & Role-Based Dashboards](#-user-roles--role-based-dashboards)
+   - [Artisan Capability Suite](#-artisan-capability-suite)
+   - [Cluster Aggregator Capability Suite](#-cluster-aggregator-capability-suite)
+   - [B2B Buyer Capability Suite](#-b2b-buyer-capability-suite)
+   - [MoSJE Admin Governance Console](#-mosje-governance-console-7-pillars)
 4. [Module Deep-Dives](#️-module-deep-dives)
    - [Module 1 — User Onboarding & Profile Management](#module-1--user-onboarding--profile-management)
    - [Module 2 — AI Image Enhancer & Studio](#module-2--ai-image-enhancer--studio)
@@ -40,7 +44,7 @@
 5. [MoSJE Governance Console (7 Pillars)](#-mosje-governance-console-7-pillars)
 6. [System Architecture & Data Flow](#-system-architecture--data-flow)
 7. [Database Schema (Entity-Relationship)](#️-database-schema-entity-relationship)
-8. [API Endpoint Reference (59 Endpoints)](#-api-endpoint-reference-59-endpoints)
+8. [API Endpoint Reference (62+ Endpoints)](#-api-endpoint-reference-62-endpoints)
 9. [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fair-wage-engine)
 10. [Tech Stack](#️-tech-stack)
 11. [Setup & Installation Guide](#-setup--installation-guide)
@@ -104,11 +108,80 @@ KalaSetu implements **full role-based routing** — each role sees a completely 
 
 | Role | Default View | Accessible Modules |
 |:---|:---|:---|
-| **Artisan / Weaver** | Artisan Dashboard | Dashboard · AI Studio · Inventory · Analytics · Notifications · Profile · Marketplace |
-| **Cluster Aggregator** | Aggregator Dashboard | Cluster Management · Artisan Directory · Marketplace |
-| **B2B Buyer** | Buyer Dashboard | Inquiry Tracker · Browse Catalog · Matched Artisans |
-| **MoSJE Admin** | Admin Console | Full Governance Console (7 Pillars) |
-| **Unauthenticated** | Marketplace | Browse Only (read-only) |
+| **Artisan / Weaver** | Artisan Dashboard | Dashboard · AI Studio · Inventory · Analytics · Inquiries & Alerts · Profile · Marketplace |
+| **Cluster Aggregator** | Aggregator Dashboard | Cluster Management · Assisted Onboarding · Scheme Relay · MoSJE Reporting · Marketplace |
+| **B2B Buyer** | Buyer Dashboard | Sent Inquiries & Order History · Browse Catalog · Matched Artisans · Verified Buyer Badge |
+| **MoSJE Admin** | Admin Console | Full Governance Console (7 Pillars: Verifications, Clusters, Schemes, Fairs, Moderation, Buyers, Analytics) |
+| **Unauthenticated** | Marketplace | Multi-Criteria Catalog Discovery (Read-Only & Guest Inquiries) |
+
+---
+
+### 🎨 Artisan Capability Suite
+
+1. **Profile, Identity & Bank Details Management**:
+   - Register profile with craft specialization (*Textiles & Handloom, Clay & Blue Pottery, Tribal & Silver Jewelry, Folk Paintings, Wood Inlay, Metalcraft*), geographic region, and assigned cooperative cluster.
+   - Capture Aadhaar identification with official MoSJE verification badge tracking.
+   - Maintain and update direct settlement details: **Bank Account Number**, **IFSC Code**, and **UPI ID** for DBT payouts (`GET /artisan/profile` & `PUT /artisan/profile`).
+2. **National Government Exhibition & Mela Registration**:
+   - Discover scheduled national fairs (**Shilp Samagam**, **Dilli Haat**, **Surajkund International Crafts Mela**, **Gandhi Shilp Bazar**).
+   - 1-click **Register Stall** workflow directly from the dashboard (`POST /admin/exhibitions/{id}/register`).
+3. **Inquiries, Scheme Alerts & Real-Time Messaging**:
+   - Dedicated **Inquiries & Alerts** hub (`NotificationsCenter.jsx`) to receive wholesale quotation requests from enterprise buyers.
+   - Interactive in-app direct reply to quote pricing, production lead times, and customization options (`POST /inquiries/{id}/respond`).
+   - Receive broadcasted MoSJE welfare schemes, subsidized credit alerts, and exhibition stall confirmations.
+4. **Simple, Visual & Bilingual Income Analytics**:
+   - Clean, icon-based metric cards and horizontal bar tracks for catalog views, bulk inquiry volume, active listings, and estimated income (*दृश्य, पूछताछ, अनुमानित आय*).
+   - 1-click downloadable CSV Sales & Performance Reports (`GET /artisan/report`).
+5. **Digital Product Catalogue & Inventory Management**:
+   - 4-step AI Studio product creation with auto-prefill from pricing engine.
+   - Live inline price editing, B2B wholesale calculation, stock incrementer ($+/-$), status toggling (`Active`, `Draft`, `Sold Out`), downloadable catalog QR codes (`GET /products/{id}/qr`), and soft-archiving.
+
+---
+
+### 🤝 Cluster Aggregator Capability Suite
+
+1. **Cluster Overview & Artisan Management**:
+   - View, search, and manage all artisans registered under their regional handicraft cluster with direct contact info, craft type, and MoSJE verification status.
+   - Export full cluster rosters to CSV (`GET /aggregator/artisans`).
+2. **Assisted Onboarding for Low-Literacy Artisans**:
+   - Register rural artisans directly in the field with name, phone, language preference (*Hindi, Bengali, Gujarati, Tamil, Odia, English*), and craft type.
+   - Automatically assigns the artisan to the cluster and initiates the MoSJE verification queue (`POST /aggregator/artisans/onboard`).
+3. **Catalogue Completion Status Monitoring**:
+   - Color-coded tracking to monitor who has digitized products: `✅ Active Listings (3+ items)`, `⏳ Started (1-2 items)`, and `⚠️ 0 Listings (Unlisted)`.
+4. **Photography & Voice Cataloging Support Flagging**:
+   - Automatically flags unlisted or struggling members as **"Needs Photography / Voice Help"**.
+   - Filterable view to plan studio photography camps and voice-assisted cataloging sessions.
+5. **Cluster-Level Analytics & Inquiry Volumes**:
+   - Real-time cluster metrics tracking total active listings, buyer inquiry count per member, and active handicraft specializations (`GET /aggregator/dashboard`).
+6. **Receive & Relay Government Scheme Alerts**:
+   - Broadcast official MoSJE welfare schemes, working capital subsidies, toolkits, and exhibition opportunities directly to cluster members via in-app alerts and SMS (`POST /aggregator/schemes/relay`).
+7. **Submit Cluster-Level Reports to MoSJE Admin**:
+   - Formally transmit monthly digitization milestones, welfare progress, and field notes directly to Ministry Administrators with automated audit trail logging (`POST /aggregator/reports/submit`).
+
+---
+
+### 🛍️ B2B Buyer Capability Suite
+
+1. **Multi-Criteria Discovery & Advanced Filtering**:
+   - Filter the national artisan catalogue by:
+     - **Craft Category**: *Textiles & Handloom, Clay & Blue Pottery, Tribal & Silver Jewelry, Folk Paintings & Art, Wood Inlay & Carving, Handicrafts & Decor*.
+     - **Region / State**: *Uttar Pradesh, Rajasthan, Gujarat, West Bengal, Odisha, Jammu & Kashmir, Madhya Pradesh, Karnataka, Tamil Nadu, Assam*.
+     - **Material**: *Silk, Cotton, Clay, Silver, Brass, Wood, Marble, Terracotta, Jute*.
+     - **Price Range Brackets**: *Under ₹1,000, ₹1,000–₹5,000, ₹5,000–₹15,000, Above ₹15,000*.
+     - **Instant Keyword Search**: Case-insensitive search across English and Hindi titles, descriptions, and materials.
+2. **Professional Listings with AI Photography & SEO**:
+   - High-resolution studio-centered product imagery with background removal and enhanced lighting.
+   - Dynamic hashtags (`#HandmadeInIndia`, `#VocalForLocal`, `#MoSJEVerified`, `#Silk`, `#Terracotta`) and bilingual story descriptions.
+3. **Direct B2B Quotations & Bulk Inquiries**:
+   - Submit bulk inquiry drawer specifying quantity, business email, custom pattern/color requirements, and delivery deadlines (`POST /inquiries`).
+4. **Verified Artisan Profiles & Cluster Transparency**:
+   - Inspect artisan craft clusters, geographic origin, and government-verified badges on dedicated standalone product pages (`ProductPage.jsx`).
+5. **Inquiry & Order History Tracking**:
+   - Track sent inquiries with real-time status lifecycles (`Pending`, `Responded`, `Completed`) and artisan quotation responses on the **Buyer Dashboard** (`GET /buyer/dashboard`).
+6. **Personalized Category-Based Artisan Matching**:
+   - Machine learning matching engine recommending top master artisans and SHG cooperatives based on past procurement interests.
+7. **MoSJE Verified Buyer Badge**:
+   - Verified enterprise buyers receive a trusted **"MoSJE Verified Buyer"** badge after admin KYC review to prevent spam and foster trust.
 
 ---
 
@@ -131,6 +204,7 @@ Language   →   Name+Phone  →  Role Select →  Craft Type  →  Region      
 - (iv) Role-based access: **Artisan · Aggregator · Admin · Buyer**
 - (v) **Aadhaar / Government ID verification** support with admin KYC review
 - (vi) **Language preference settings** — Hindi, English, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Odia
+- (vii) **Bank Account & Direct Payment Settlement** — Bank Account, IFSC Code, UPI ID
 
 **Supported Craft Categories (visual tiles):**
 🧵 Textiles · 🏺 Pottery · 💎 Jewelry · 🪵 Woodcraft · 🎨 Paintings · 🔨 Metal Craft
@@ -141,20 +215,15 @@ Language   →   Name+Phone  →  Role Select →  Craft Type  →  Region      
 
 **Memory-safe, production-ready AI photo studio** optimized for rural mobile cameras:
 
-- (i) **AI Background Removal** — powered by lightweight **ONNX `u2netp` (4.57 MB)** consuming **< 80 MB RAM** (vs 1+ GB for standard models)
-- (ii) **Automatic lighting correction** — CLAHE (Contrast Limited Adaptive Histogram Equalization) for balanced exposure
-- (iii) **Professional formatting** — centers product on white/neutral canvas at standard e-commerce aspect ratios
-- (iv) **Batch upload & enhancement** — submit up to N images at once via `POST /enhance/batch`
-- (v) **Before/After preview** — side-by-side comparison with single-click PNG download
+- (i) **AI Background Removal** — powered by lightweight **ONNX `u2netp` (4.57 MB)** consuming **< 80 MB RAM**
+- (ii) **Edge-Safe Studio Lighting & Vibrance** — mask-aware unsharp masking (`GaussianBlur` + weighted subtraction) and LAB vibrance boost applied strictly to opaque pixels (completely eliminating CLAHE halo blur)
+- (iii) **Mobile Camera & Live Webcam Support** — native smartphone camera capture (`capture="environment"`) and in-browser desktop webcam viewfinder
+- (iv) **Professional formatting** — centers product on white/neutral canvas at standard e-commerce aspect ratios ($800 \times 800$)
+- (v) **Batch upload & enhancement** — submit multiple images at once via `POST /enhance/batch`
 - (vi) **Image quality scoring** — Laplacian sharpness, brightness, and contrast analyzed → `0–100` overall score + `Excellent / Good / Fair / Poor` rating
 
 **Supported Product Types:**
 🧵 Textiles & Handloom · 🏺 Handicrafts & Pottery · 💎 Jewelry & Accessories · 🪵 Wooden/Metal Craft · 🎨 Paintings & Wall Art
-
-**Auto-downscaling pipeline:**
-```
-Raw Camera Photo → Resize to ≤1024px → u2netp ONNX → CLAHE → 800×800 Canvas → Base64 Output
-```
 
 ---
 
@@ -177,8 +246,6 @@ Raw Camera Photo → Resize to ≤1024px → u2netp ONNX → CLAHE → 800×800 
 | Hindi (hi-IN), Bengali (bn-IN), Tamil (ta-IN), Telugu (te-IN) | English (EN) |
 | Marathi (mr-IN), Gujarati (gu-IN), Kannada (kn-IN), Odia (or-IN) | Hindi (HI) |
 
-**Intelligent fallback engine:** When Gemini API key is unavailable, a dynamic keyword parser categorizes spoken vocabulary (saree, silk, brass, pottery, jewelry, paintings, etc.) and generates customized bilingual listings.
-
 ---
 
 ### Module 4 — Dynamic Pricing Assistant
@@ -188,13 +255,9 @@ Raw Camera Photo → Resize to ≤1024px → u2netp ONNX → CLAHE → 800×800 
 - (i) ML-style pricing algorithm analyzing product category + material
 - (ii) **Competitive price suggestion** based on current market bands (Amazon Karigar, Etsy, ONDC)
 - (iii) Raw material cost consideration in all calculations
-- (iv) **3-tier price display**: Min. Breakeven · Recommended D2C · Premium
+- (iv) **3-tier price display**: Min. Breakeven · Recommended D2C · Premium · B2B Wholesale
 - (v) Market competitor range comparison
-- (vi) **Artisan override** — publish at any custom price
-
-**Pricing Factors:** Product category · Material type · Craft multiplier · Raw material costs · Regional demand · Seasonal variations
-
-See full formulas in [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fair-wage-engine).
+- (vi) **Artisan override** — publish at custom price or update inline later in Inventory
 
 ---
 
@@ -203,20 +266,11 @@ See full formulas in [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fai
 **Full digital catalog lifecycle management:**
 
 - (i) Digital catalog creation with AI-enhanced images + auto-generated bilingual descriptions
-- (ii) **Inventory tracking** — stock count per product with +/− counter UI
-- (iii) **Product listing management** — 5 lifecycle states:
-
-| Status | Description |
-|:---|:---|
-| `Active` | Live on public marketplace |
-| `Draft` | Saved, not yet published |
-| `Sold Out` | Auto-set when stock reaches 0 |
-| `Archived` | Removed from listing, data retained |
-| `Pending Review` | Awaiting MoSJE moderation (unverified artisans) |
-
-- (iv) **Bulk catalog** upload and batch AI enhancement
-- (v) **Search & filter** by category, material, price range, status
-- (vi) **QR code catalog sharing** — every product generates a scannable QR PNG (`GET /products/{id}/qr`) for exhibitions and trade fairs
+- (ii) **Inventory tracking** — stock count per product with $+/-$ incrementer
+- (iii) **Inline Price Editing** — update base and suggested retail prices directly from the inventory table (`PUT /products/{id}/price`)
+- (iv) **Product listing management** — 5 lifecycle states (`Active`, `Draft`, `Sold Out`, `Archived`, `Pending Review`)
+- (v) **QR code catalog sharing** — every product generates a scannable QR PNG (`GET /products/{id}/qr`) for exhibitions and trade fairs
+- (vi) **Dedicated Product Detail Pages** — standalone view (`ProductPage.jsx`) displaying full specifications, artisan credentials, and bulk inquiry trigger
 
 ---
 
@@ -225,16 +279,11 @@ See full formulas in [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fai
 **Direct artisan-to-buyer digital channels:**
 
 - (i) Integration hooks for GeM portal and state e-marketplaces
-- (ii) **B2B buyer discovery** — verified buyers browse, filter, and contact artisans
-- (iii) **Inquiry & order management** — status tracking (Pending → Responded → Completed)
+- (ii) **Multi-Criteria B2B buyer discovery** — filter by craft type, region, material, and price brackets
+- (iii) **Inquiry & order conversation tracking** — status tracking (`Pending → Responded → Completed`)
 - (iv) **Exhibition digital presence** — QR-linked virtual stalls for Shilp Samagam, Surajkund Mela, Dilli Haat
 - (v) **Bulk order request handling** for aggregators and SHG coordinators
 - (vi) Artisan profile visibility with verified government badge
-
-**Connected Channels:**
-- 🏛️ Government e-Marketplaces (GeM, state portals)
-- 🏢 B2B Buyers & Wholesale Aggregators
-- 🎪 Exhibition & Trade Fair Digital Catalogs
 
 ---
 
@@ -243,18 +292,17 @@ See full formulas in [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fai
 **Per-listing and platform-wide analytics:**
 
 **Artisan-Level (personal dashboard):**
-- (i) Product view count tracking per listing (via `ProductView` table)
-- (ii) Sales performance: orders received, revenue estimate
+- (i) Product view count tracking per listing (via `product_views` table)
+- (ii) Sales performance: orders received, estimated income summary
 - (iii) Top-performing products by inquiry volume
-- (iv) Market demand trends for their craft categories
-- (v) **Visual, icon/chart-based dashboards** for low-literacy users (CSS bar charts, emoji indicators)
-- CSV export of full product analytics report
+- (iv) **Visual, bilingual bar charts** for low-literacy users (*उत्पाद दृश्य, पूछताछ, अनुमानित आय*)
+- (v) Downloadable CSV sales and performance reports (`GET /artisan/report`)
+
+**Aggregator-Level (cluster analytics):**
+- Cluster-wide active listings, total artisans, catalog completion percentage, and members requiring assistance.
 
 **Admin-Level (platform-wide):**
-- Total artisans, verified count, new registrations
-- Buyer engagement rates, average product prices
-- State-wise adoption progress bars
-- Cluster output rankings
+- Total artisans, verified count, new registrations, buyer inquiries count, B2B wholesale transaction values, regional distribution, and cluster output rankings.
 
 ---
 
@@ -262,44 +310,36 @@ See full formulas in [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fai
 
 **Multilingual alert and communication system:**
 
-- (i) **Order inquiry alerts** — buyer sends inquiry → artisan gets instant notification
+- (i) **Order inquiry alerts** — buyer sends inquiry → artisan gets instant notification with direct reply box
 - (ii) **Price update alerts** for listed products
-- (iii) **Government scheme broadcasts** — admin targets by state or craft type
-- (iv) **Exhibition opportunity alerts** — upcoming fair registrations
-- (v) **In-app notifications center** with type icons, filter tabs (All / Unread / Inquiry / Scheme / Verification), and mark-read controls
-
-**Notification Types:** 🔔 System · 💬 Inquiry · 🏛️ Verification · 📢 Scheme Alert · 🎪 Exhibition
+- (iii) **Government scheme broadcasts** — admin & aggregators target by state or craft type
+- (iv) **Exhibition opportunity alerts** — upcoming fair registrations & approval notifications
+- (v) **In-app notifications center** with type filters (All / Unread / Inquiry / Scheme), unread badges, and 1-click mark all as read
 
 ---
 
 ### Module 9 — Role-Based Dashboards
 
 #### 🧵 Artisan Dashboard
-*The core user experience — simplified, visual, low-literacy friendly:*
-
-| Feature | Details |
-|:---|:---|
-| Stat cards | Total listings, product views, inquiry count, revenue estimate |
-| Top Products | Top 4 products by inquiry + view count with status badges |
-| Quick Actions | 6-button grid: AI Studio · Inventory · Analytics · Inquiries · Notifications · Profile |
-| Exhibition Panel | Upcoming fair registrations with approval status |
-| Add Product CTA | Direct link to 4-step AI Studio pipeline |
+*Simplified, visual, low-literacy friendly:*
+- Stat cards: Total listings, product views, inquiry count, revenue estimate.
+- Top Products: Top products by inquiry + view count.
+- Government Exhibitions: View upcoming fairs with 1-click stall registration.
+- Quick Tools: 6-button grid (AI Studio, Inventory, Analytics, Inquiries & Alerts, Profile).
 
 #### 🏘️ Aggregator Dashboard
-*Manages a cohort of artisans across one or more clusters:*
-
-- Cluster summary cards (total artisans, active listings, artisans needing support)
-- Per-cluster accordion with full artisan roster
-- Per-artisan: name, craft type, verification badge, listing count, "Needs Support" flag
-- Export artisan list
+*Manages a cohort of artisans across clusters:*
+- Cluster summary cards (total artisans, active listings, members needing support).
+- Assisted Onboarding modal for low-literacy artisans.
+- Catalogue completion monitoring (`Digitized` vs `Needs Support`).
+- Scheme and exhibition opportunity broadcaster.
+- Official cluster report submission to MoSJE Admin.
 
 #### 🏢 B2B Buyer Dashboard
-*Commerce-focused browsing and inquiry management:*
-
-- Inquiry history table with status tabs (Pending / Responded / Completed)
-- Suggested artisans matched to past inquiry craft categories
-- Send new inquiry from dashboard
-- Verified buyer badge display
+*Procurement and order tracking:*
+- Inquiry tracking table with real-time status (`Pending`, `Responded`, `Completed`).
+- Verified Buyer Badge banner.
+- Personalized artisan recommendations matched to past procurement interests.
 
 #### 🏛️ Admin Dashboard (MoSJE Governance)
 See [MoSJE Governance Console](#-mosje-governance-console-7-pillars) below.
@@ -339,15 +379,17 @@ flowchart TB
             Inventory[Inventory Manager]
             Analytics[Analytics & Reports]
             Notifs[Notifications Center]
+            Profile[Artisan Profile & Bank]
         end
         subgraph Common["Common"]
             Market[B2B Marketplace]
+            ProductView[Dedicated Product Page]
             Onboard[Onboarding Wizard]
             STT[Web SpeechRecognition]
         end
     end
 
-    subgraph Backend["FastAPI Application Server — 59 Endpoints"]
+    subgraph Backend["FastAPI Application Server — 62+ Endpoints"]
         API[FastAPI Router & JWT Middleware]
         ImgSvc[ImageProcessor — OpenCV + u2netp]
         CatSvc[Cataloger — Gemini 1.5 Flash]
@@ -371,66 +413,6 @@ flowchart TB
     API --> AuthSvc
     API --> PG
     API --> QRLib
-```
-
-### Artisan 4-Step Studio Workflow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Artisan as Artisan / Weaver
-    participant App as KalaSetu Frontend
-    participant Backend as FastAPI Server
-    participant ONNX as ONNX u2netp Engine
-    participant Gemini as Google Gemini AI
-    participant DB as PostgreSQL DB
-
-    Artisan->>App: Upload raw workshop photo
-    App->>Backend: POST /enhance (raw image)
-    Backend->>ONNX: Remove background + CLAHE lighting
-    ONNX-->>Backend: Clean PNG (800×800, <80MB RAM)
-    Backend-->>App: Base64 enhanced image + quality score
-
-    Artisan->>App: Speaks description into microphone
-    App->>App: Live SpeechRecognition (9 Indian languages)
-    App->>Backend: POST /catalog (audio + transcript)
-    Backend->>Gemini: Transcribe + translate + extract tags
-    Gemini-->>Backend: Structured JSON {EN + HI listings}
-    Backend-->>App: Bilingual catalog response
-
-    Artisan->>App: Enter raw material cost + labor hours
-    App->>Backend: POST /suggest-price
-    Backend-->>App: Fair wage + D2C + B2B price breakdown
-
-    Artisan->>App: Click "Publish Product"
-    App->>Backend: POST /products (JWT)
-    alt Artisan is KYC Verified
-        Backend->>DB: INSERT Product (status=Active)
-        Backend-->>App: ✅ Product live on Marketplace
-    else Artisan KYC Pending
-        Backend->>DB: INSERT Product (status=Pending Review)
-        Backend-->>App: ⏳ Queued for Admin Moderation
-    end
-```
-
-### Onboarding Flow
-
-```mermaid
-sequenceDiagram
-    actor User as New User
-    participant Wizard as Onboarding Wizard
-    participant Backend as FastAPI
-
-    User->>Wizard: Open platform (first visit)
-    Wizard->>User: Step 1 — Select Language (icon tiles)
-    User->>Wizard: Step 2 — Enter Name + Phone
-    User->>Wizard: Step 3 — Select Role (Artisan/Aggregator/Buyer)
-    User->>Wizard: Step 4 — Select Craft Type (emoji grid, Artisan only)
-    User->>Wizard: Step 5 — Select State + District
-    User->>Wizard: Step 6 — Create Password
-    Wizard->>Backend: POST /auth/register
-    Backend-->>Wizard: JWT Token + User Profile
-    Wizard->>User: Step 7 — ✅ Success → Go to Dashboard
 ```
 
 ---
@@ -666,7 +648,7 @@ erDiagram
 
 ---
 
-## 📡 API Endpoint Reference (59 Endpoints)
+## 📡 API Endpoint Reference (62+ Endpoints)
 
 ### 🔐 Authentication & User Management
 
@@ -682,7 +664,7 @@ erDiagram
 
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/enhance` | Artisan | Remove background with `u2netp` ONNX, apply CLAHE lighting, return enhanced PNG + quality score. |
+| `POST` | `/enhance` | Artisan | Remove background with `u2netp` ONNX, apply mask-aware lighting, return enhanced PNG + quality score. |
 | `POST` | `/enhance/batch` | Artisan | Batch enhance multiple product images. Returns array of Base64 results + quality scores. |
 | `POST` | `/catalog` | Artisan | Voice/text → bilingual EN+HI catalog via Google Gemini 1.5 Flash. |
 | `POST` | `/suggest-price` | Artisan | Fair wage + retail + B2B price suggestion from material cost, hours, and category. |
@@ -694,12 +676,13 @@ erDiagram
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/products` | Artisan | Create a listing. Auto-routes to `Pending Review` if artisan KYC is pending. |
-| `GET` | `/products` | Public | Search/filter active catalog by category, material, or keyword. |
+| `GET` | `/products` | Public | Multi-criteria search/filter by category, region, material, price brackets, or keyword. |
 | `GET` | `/products/{id}` | Public | Get single product detail. Increments `view_count` and logs `ProductView`. |
 | `PUT` | `/products/{id}` | Artisan | Update product title, description, price, or stock. |
 | `DELETE` | `/products/{id}` | Artisan | Archive (soft-delete) a product listing. |
 | `PUT` | `/products/{id}/status` | Artisan | Toggle status: `Active · Draft · Sold Out · Archived · Pending Review`. |
 | `PUT` | `/products/{id}/stock` | Artisan | Update stock count. Auto-sets `Sold Out` when stock reaches 0. |
+| `PUT` | `/products/{id}/price` | Artisan | Update base price and suggested retail price directly. |
 | `GET` | `/products/{id}/qr` | Public | Generate and return a scannable QR code PNG for catalog sharing at exhibitions. |
 
 ---
@@ -709,8 +692,8 @@ erDiagram
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/artisan/dashboard` | Artisan | Summary dashboard: listing counts, views, inquiries, revenue estimate, pending items, upcoming exhibitions. |
-| `GET` | `/artisan/profile` | Artisan | Full profile: user info, craft type, cluster, bank details, KYC status. |
-| `PUT` | `/artisan/profile` | Artisan | Update language preference, craft type, bank account, UPI ID, Aadhaar, name, region. |
+| `GET` | `/artisan/profile` | Artisan | Full profile: user info, craft type, cluster, bank details, Aadhaar, KYC status. |
+| `PUT` | `/artisan/profile` | Artisan | Update language preference, craft type, bank account, IFSC, UPI ID, Aadhaar, name, region. |
 | `GET` | `/artisan/analytics` | Artisan | Per-product analytics: views, inquiries, completed orders, revenue estimate, top products. |
 | `GET` | `/artisan/report` | Artisan | Export full analytics as downloadable CSV file. |
 
@@ -722,6 +705,9 @@ erDiagram
 | :--- | :--- | :--- | :--- |
 | `GET` | `/aggregator/dashboard` | Aggregator | Summary across all managed clusters: artisan count, catalog status, artisans needing support. |
 | `GET` | `/aggregator/artisans` | Aggregator | Full list of all artisans across aggregator's clusters with verification and listing status. |
+| `POST` | `/aggregator/artisans/onboard` | Aggregator | Assisted registration of low-literacy artisans directly into the cluster. |
+| `POST` | `/aggregator/schemes/relay` | Aggregator | Broadcast scheme alerts & exhibition opportunities to all cluster artisans. |
+| `POST` | `/aggregator/reports/submit` | Aggregator | Formally submit cluster progress report to MoSJE Admin. |
 | `GET` | `/clusters` | Aggregator / Admin | List all craft clusters. |
 | `POST` | `/clusters` | Admin | Create a new cluster by state, district, and specialization. |
 | `GET` | `/clusters/my-clusters` | Aggregator | List clusters managed by the current aggregator. |
@@ -735,9 +721,9 @@ erDiagram
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/buyer/dashboard` | Buyer | Inquiry history, status summary (Pending/Responded/Completed), suggested artisans. |
-| `POST` | `/inquiries` | Buyer | Submit bulk order inquiry to an artisan. |
+| `POST` | `/inquiries` | Buyer | Submit bulk order quotation inquiry to an artisan. |
 | `GET` | `/inquiries` | Authenticated | List sent or received inquiries. |
-| `POST` | `/inquiries/{id}/respond` | Artisan | Respond to a buyer inquiry. Updates status and sends notification to buyer. |
+| `POST` | `/inquiries/{id}/respond` | Artisan | Respond to a buyer inquiry with custom quotation and lead times. |
 
 ---
 
@@ -745,7 +731,7 @@ erDiagram
 
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/notifications` | Authenticated | Fetch all notifications for the current user (inquiry alerts, scheme alerts, verifications). |
+| `GET` | `/notifications` | Authenticated | Fetch all user-scoped notifications (inquiry alerts, scheme alerts, verifications). |
 | `POST` | `/notifications` | Admin | Send a notification to a specific user. |
 | `PUT` | `/notifications/{id}/read` | Authenticated | Mark a single notification as read. |
 | `PUT` | `/notifications/mark-all-read` | Authenticated | Mark all notifications as read for the current user. |
@@ -772,7 +758,7 @@ erDiagram
 | `POST` | `/admin/exhibitions` | Admin | Schedule a new fair (Shilp Samagam, Surajkund Mela, Dilli Haat). |
 | `GET` | `/admin/exhibitions` | Public / Admin | List all physical fairs & exhibitions. |
 | `PUT` | `/admin/exhibitions/{id}/status` | Admin | Update fair lifecycle status. |
-| `POST` | `/admin/exhibitions/{id}/register` | Artisan | Register artisan digitally for an exhibition. |
+| `POST` | `/admin/exhibitions/{id}/register` | Artisan | Register artisan digitally for an exhibition stall. |
 | `POST` | `/admin/exhibitions/registrations/{id}/status` | Admin | Approve or reject artisan exhibition registration. |
 | `GET` | `/admin/exhibitions/{id}/registrations` | Admin | List all registrations for a fair. |
 | `GET` | `/admin/exhibitions/{id}/registrations/detailed` | Admin | Detailed artisan registration data for a fair. |
@@ -827,8 +813,6 @@ The **₹150/hr (₹1,200/day)** benchmark is derived from:
 | MediaRecorder API | Native Browser | Live microphone recording with waveform animation |
 | CSS3 Design System | Custom | Dark theme — Marigold `#E67E22` + Terracotta `#D35400` |
 
-**Bundle Size:** `dist/assets/index.js` = 311 KB (gzip: 82 KB), `index.css` = 19 KB
-
 ### Backend
 
 | Technology | Version | Purpose |
@@ -843,20 +827,11 @@ The **₹150/hr (₹1,200/day)** benchmark is derived from:
 | passlib[bcrypt] | ≥1.7.4 | Password hashing (bcrypt) |
 | rembg | ≥2.0.50 | AI background removal (wraps ONNX u2netp) |
 | Pillow | ≥10.0.0 | Image processing, resizing, canvas operations |
-| opencv-python | ≥4.8.0 | CLAHE lighting correction, quality scoring |
+| opencv-python | ≥4.8.0 | Mask-aware unsharp enhancement, quality scoring |
 | google-genai | ≥1.0.0 | Google Gemini 1.5 Flash multimodal API |
 | qrcode[pil] | Latest | QR code PNG generation for catalog sharing |
 | python-dotenv | ≥1.0.0 | Environment variable loading |
 | python-multipart | ≥0.0.6 | File upload support |
-
-### Infrastructure
-
-| Component | Choice | Notes |
-|:---|:---|:---|
-| Task Queue | FastAPI Background Tasks | Production-ready with note to upgrade to Celery + Redis |
-| Auth | OAuth2 Bearer (JWT) | Stateless, role-scoped tokens |
-| CORS | CORSMiddleware | Open for dev; restrict origins for production |
-| Model Serving | ONNX Runtime (singleton) | `u2netp` session kept in-memory across requests |
 
 ---
 
@@ -882,7 +857,6 @@ Create `backend/.env` (use `backend/.env.example` as template):
 
 ```env
 # PostgreSQL Database
-USE_POSTGRES=true
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_postgres_password
 POSTGRES_HOST=localhost
@@ -909,8 +883,6 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-> **Note:** `requirements.txt` includes all dependencies: FastAPI, rembg, OpenCV, Pillow, google-genai, psycopg2, qrcode, and more.
-
 ---
 
 ### Step 3: Frontend Installation
@@ -922,36 +894,15 @@ npm install
 
 ---
 
-### Step 4: Create Initial MoSJE Admin
+### Step 4: Run Database Migration & Default Admin Seed
 
-From the `Kama-Setu/` root directory:
+From the `Kama-Setu/backend` directory:
 
 ```powershell
-backend\venv\Scripts\python.exe -c "
-from backend.database import SessionLocal
-import backend.models as models, backend.auth as auth
-
-db = SessionLocal()
-if not db.query(models.User).filter_by(username='admin').first():
-    user = models.User(
-        username='admin',
-        full_name='MoSJE Administrator',
-        email='admin@mosje.gov.in',
-        phone_number='9999999999',
-        password_hash=auth.hash_password('admin123'),
-        role='Admin',
-        is_verified=True,
-        state='New Delhi',
-        district='Central Delhi'
-    )
-    db.add(user)
-    db.commit()
-    print('Admin created: username=admin / password=admin123')
-else:
-    print('Admin already exists.')
-db.close()
-"
+python migrate.py
 ```
+
+> This executes automatic migrations across all 19 tables and seeds the default administrator account (`admin` / `admin`).
 
 ---
 
@@ -992,12 +943,12 @@ npm run dev
 
 ### Default Test Credentials
 
-| Role | Username | Password |
-|:---|:---|:---|
-| MoSJE Admin | `admin` | `admin123` |
-| Artisan | Register via `/auth/register` with `role=Artisan` | — |
-| B2B Buyer | Register via `/auth/register` with `role=Buyer` | — |
-| Aggregator | Register via `/auth/register` with `role=Aggregator` | — |
+| Role | Username | Password | Notes |
+|:---|:---|:---|:---|
+| MoSJE Admin | `admin` | `admin` | Full administrative governance console access |
+| Artisan | Register via `/auth/register` or Onboarding Wizard | Custom | Full catalog, studio & income analytics |
+| B2B Buyer | Register via `/auth/register` with `role=Buyer` | Custom | Direct quotation & inquiry tracking |
+| Aggregator | Register via `/auth/register` with `role=Aggregator` | Custom | Cluster management & assisted onboarding |
 
 ---
 
@@ -1006,6 +957,6 @@ npm run dev
 **KalaSetu (कला सेतु)** — *Empowering Indian Artisans through AI, Fair Wages & Digital Market Linkages.*  
 Developed for the **Smart India Hackathon (SIH26090)** under the **Ministry of Social Justice & Empowerment (MoSJE)**.
 
-*59 API Endpoints · 19 DB Tables · 29 React Components · 9 Platform Modules · 4 User Roles*
+*62+ API Endpoints · 19 DB Tables · 29 React Components · 9 Platform Modules · 4 User Roles*
 
 </div>
