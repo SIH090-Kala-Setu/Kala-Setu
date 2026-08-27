@@ -2042,22 +2042,34 @@ def get_buyer_dashboard(
     if current_user.role not in ["Buyer", "Admin"]:
         raise HTTPException(status_code=403, detail="Buyer access required.")
 
-    inquiries = db.query(models.BuyerInquiry).filter(
-        models.BuyerInquiry.buyer_id == current_user.id
-    ).order_by(models.BuyerInquiry.created_at.desc()).all()
+    if current_user.role == "Admin":
+        inquiries = db.query(models.BuyerInquiry).order_by(models.BuyerInquiry.created_at.desc()).all()
+    else:
+        inquiries = db.query(models.BuyerInquiry).filter(
+            (models.BuyerInquiry.buyer_id == current_user.id) |
+            (models.BuyerInquiry.buyer.has(models.User.email == current_user.email))
+        ).order_by(models.BuyerInquiry.created_at.desc()).all()
 
     inquiry_list = []
     for inq in inquiries:
         product = db.query(models.Product).filter(models.Product.id == inq.product_id).first()
         artisan_user = db.query(models.User).filter(models.User.id == inq.artisan_id).first()
+        artisan_name = "Independent Artisan"
+        if artisan_user and artisan_user.full_name:
+            artisan_name = artisan_user.full_name
+        elif product and product.artisan and product.artisan.user and product.artisan.user.full_name:
+            artisan_name = product.artisan.user.full_name
+        elif product and product.artisan and product.artisan.cluster_name:
+            artisan_name = product.artisan.cluster_name
+
         inquiry_list.append({
             "inquiry_id": str(inq.id),
             "product_id": str(inq.product_id),
-            "product_title": product.title_en if product else "Unknown",
-            "artisan_name": artisan_user.full_name if artisan_user else "Unknown",
+            "product_title": product.title_en if product else "Artisan Craft Piece",
+            "artisan_name": artisan_name,
             "quantity": inq.quantity,
             "message": inq.message,
-            "status": inq.status,
+            "status": inq.status or "Pending",
             "created_at": inq.created_at.isoformat() if inq.created_at else "",
         })
 

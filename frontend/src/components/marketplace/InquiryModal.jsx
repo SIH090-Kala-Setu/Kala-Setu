@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import { createInquiry } from '../../api/inquiries';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Send, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
-export default function InquiryModal({ isOpen, onClose, product }) {
+export default function InquiryModal({ isOpen, onClose, product, onInquirySubmitted }) {
   const { user, isAuthenticated } = useAuth();
   const [buyerName, setBuyerName] = useState(user?.full_name || user?.username || '');
   const [buyerEmail, setBuyerEmail] = useState(user?.email || '');
@@ -14,20 +14,28 @@ export default function InquiryModal({ isOpen, onClose, product }) {
   const [submitting, setSubmitting] = useState(false);
   const { showToast } = useToast();
 
+  useEffect(() => {
+    if (user) {
+      if (user.full_name || user.username) setBuyerName(user.full_name || user.username);
+      if (user.email) setBuyerEmail(user.email);
+    }
+  }, [user, isOpen]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!product) return;
     setSubmitting(true);
 
     try {
-      await createInquiry({
+      const res = await createInquiry({
         product_id: product.id,
-        buyer_name: buyerName || 'B2B Enterprise Buyer',
-        buyer_email: buyerEmail,
+        buyer_name: buyerName || user?.full_name || 'B2B Enterprise Buyer',
+        buyer_email: buyerEmail || user?.email || 'buyer@brand.com',
         quantity: parseInt(quantity, 10) || 1,
-        notes
+        notes: notes || 'Standard wholesale inquiry regarding pricing and delivery schedule.'
       });
-      showToast('Bulk inquiry sent directly to the artisan cooperative!', 'success');
+      showToast(`Bulk inquiry sent directly to ${product.artisan_name || 'the artisan'}!`, 'success');
+      if (onInquirySubmitted) onInquirySubmitted(res);
       onClose();
     } catch (err) {
       showToast(err.message || 'Inquiry submission failed', 'error');
@@ -124,4 +132,3 @@ export default function InquiryModal({ isOpen, onClose, product }) {
     </Modal>
   );
 }
-

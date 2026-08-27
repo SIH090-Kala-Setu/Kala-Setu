@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getBuyerDashboard } from '../../api/buyer';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -13,22 +13,36 @@ import {
   Sparkles, 
   ArrowRight,
   ExternalLink,
-  Tag
+  Tag,
+  RotateCcw,
+  Package
 } from 'lucide-react';
 
 export default function BuyerDashboard({ onSelectProduct }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('All');
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  useEffect(() => {
-    getBuyerDashboard()
-      .then(setData)
-      .catch(err => showToast(err.message, 'error'))
-      .finally(() => setLoading(false));
+  const fetchBuyerData = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      const res = await getBuyerDashboard();
+      setData(res);
+      if (isManual) showToast('Inquiries and matched artisans updated!', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to load buyer workspace', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [showToast]);
+
+  useEffect(() => {
+    fetchBuyerData();
+  }, [fetchBuyerData]);
 
   if (loading) {
     return (
@@ -55,8 +69,19 @@ export default function BuyerDashboard({ onSelectProduct }) {
           </p>
         </div>
 
-        {/* Verification Status Badge */}
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => fetchBuyerData(true)}
+            disabled={refreshing}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            title="Refresh Inquiries & Responses"
+          >
+            <RotateCcw size={14} className={refreshing ? 'btn-spinner' : ''} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+
           {isVerifiedBuyer ? (
             <div
               style={{
