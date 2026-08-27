@@ -1909,6 +1909,31 @@ async def batch_enhance_images(
 
 # ===== AGGREGATOR DASHBOARD ENDPOINTS =====
 
+# ===== AGGREGATOR DASHBOARD ENDPOINTS =====
+
+class AssistedOnboardRequest(BaseModel):
+    full_name: str
+    phone_number: str
+    craft_type: str
+    state: str
+    district: Optional[str] = None
+    preferred_language: Optional[str] = "Hindi"
+    aadhaar_number: Optional[str] = None
+    cluster_id: Optional[str] = None
+
+class AggregatorReportSubmit(BaseModel):
+    report_title: str
+    cluster_name: str
+    total_artisans: int
+    active_listings: int
+    support_needed_count: int
+    notes: Optional[str] = None
+
+class SchemeRelayRequest(BaseModel):
+    scheme_name: str
+    message: str
+    cluster_id: Optional[str] = None
+
 @app.get("/aggregator/dashboard")
 def get_aggregator_dashboard(
     db: Session = Depends(get_db),
@@ -1921,6 +1946,8 @@ def get_aggregator_dashboard(
     clusters = db.query(models.Cluster).filter(
         models.Cluster.aggregator_id == current_user.id
     ).all()
+    if not clusters:
+        clusters = db.query(models.Cluster).all()
 
     cluster_summaries = []
     total_artisans = 0
@@ -1941,6 +1968,7 @@ def get_aggregator_dashboard(
 
             listing_count = 0
             has_active_listing = False
+            inq_count = 0
             if artisan_profile:
                 listing_count = db.query(models.Product).filter(
                     models.Product.artisan_id == artisan_profile.id
@@ -1949,6 +1977,9 @@ def get_aggregator_dashboard(
                     models.Product.artisan_id == artisan_profile.id,
                     models.Product.status == "Active"
                 ).count() > 0
+                inq_count = db.query(models.BuyerInquiry).filter(
+                    models.BuyerInquiry.artisan_id == artisan_user.id
+                ).count() if artisan_user else 0
 
             if artisan_user:
                 artisan_details.append({
@@ -1959,6 +1990,10 @@ def get_aggregator_dashboard(
                     "listing_count": listing_count,
                     "has_active_listing": has_active_listing,
                     "needs_support": not has_active_listing,
+                    "support_reason": "Needs Photography / Voice Cataloging Help" if not has_active_listing else "Catalog Active",
+                    "inquiry_count": inq_count,
+                    "state": artisan_user.state,
+                    "phone": artisan_user.phone_number
                 })
 
         active_in_cluster = sum(1 for a in artisan_details if a["has_active_listing"])
@@ -1983,6 +2018,7 @@ def get_aggregator_dashboard(
         "total_artisans": total_artisans,
         "total_active_listings": total_active_listings,
         "total_pending_inquiries": total_pending_inquiries,
+        "artisans_needing_support": sum(c["artisans_needing_support"] for c in cluster_summaries),
         "clusters": cluster_summaries,
     }
 
@@ -1992,13 +2028,15 @@ def get_aggregator_artisans(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """Get all artisans managed under aggregator's clusters."""
+    """Get all artisans managed under aggregator's clusters with catalog status."""
     if current_user.role not in ["Aggregator", "Admin"]:
         raise HTTPException(status_code=403, detail="Aggregator access required.")
 
     clusters = db.query(models.Cluster).filter(
         models.Cluster.aggregator_id == current_user.id
     ).all()
+    if not clusters:
+        clusters = db.query(models.Cluster).all()
 
     all_artisans = []
     seen_ids = set()
@@ -2015,8 +2053,16 @@ def get_aggregator_artisans(
             artisan_profile = db.query(models.ArtisanProfile).filter(
                 models.ArtisanProfile.user_id == m.artisan_id
             ).first()
+
+            listing_count = 0
+            if artisan_profile:
+                listing_count = db.query(models.Product).filter(
+                    models.Product.artisan_id == artisan_profile.id
+                ).count()
+
             if artisan_user:
                 all_artisans.append({
+                    "id": str(artisan_user.id),
                     "user_id": str(artisan_user.id),
                     "name": artisan_user.full_name,
                     "phone": artisan_user.phone_number,
@@ -2026,9 +2072,158 @@ def get_aggregator_artisans(
                     "is_verified": artisan_user.is_verified,
                     "cluster_name": cluster.cluster_name,
                     "preferred_language": artisan_user.preferred_language,
+                    "listing_count": listing_count,
+                    "needs_support": listing_count == 0,
+                    "support_reason": "Needs Photography / Voice Cataloging Help" if listing_count == 0 else "Catalog Active"
                 })
 
     return {"artisans": all_artisans, "total": len(all_artisans)}
+
+
+@app.post("/aggregator/artisans/onboard")
+def assisted_onboard_artisan(
+    req: AssistedOnboardRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Assisted onboarding of low-literacy artisans by their cluster aggregator."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator or Admin access required.")
+
+    existing = db.query(models.User).filter(
+        (models.User.phone_number == req.phone_number) |
+        (models.User.username == req.phone_number)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="An artisan with this phone number is already registered.")
+
+    new_user = models.User(
+        username=req.phone_number,
+        phone_number=req.phone_number,
+        full_name=req.full_name,
+        role="Artisan",
+        state=req.state,
+        district=req.district,
+        preferred_language=req.preferred_language or "Hindi",
+        is_verified=False
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    cluster = None
+    if req.cluster_id:
+        cluster = db.query(models.Cluster).filter(models.Cluster.id == uuid.UUID(req.cluster_id)).first()
+    if not cluster:
+        cluster = db.query(models.Cluster).first()
+
+    cluster_title = cluster.cluster_name if cluster else "Cooperative Cluster"
+
+    profile = models.ArtisanProfile(
+        user_id=new_user.id,
+        craft_type=req.craft_type,
+        aadhaar_number=req.aadhaar_number or str(uuid.uuid4().int)[:12],
+        cluster_name=cluster_title
+    )
+    db.add(profile)
+
+    if cluster:
+        membership = models.ClusterArtisan(
+            cluster_id=cluster.id,
+            artisan_id=new_user.id
+        )
+        db.add(membership)
+
+    verif = models.ArtisanVerification(
+        artisan_id=new_user.id,
+        status="Pending",
+        aadhaar_verified=False,
+        bank_verified=False
+    )
+    db.add(verif)
+
+    notif = models.Notification(
+        user_id=new_user.id,
+        title="Welcome to KalaSetu",
+        body=f"Assisted registration completed by Cluster Aggregator {current_user.full_name}. Your profile is active.",
+        type="System"
+    )
+    db.add(notif)
+
+    db.commit()
+    return {
+        "message": f"Artisan {req.full_name} successfully registered in {cluster_title}!",
+        "artisan_id": str(new_user.id),
+        "cluster_name": cluster_title
+    }
+
+
+@app.post("/aggregator/schemes/relay")
+def relay_scheme_to_artisans(
+    req: SchemeRelayRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Aggregator broadcasts scheme alerts & exhibition opportunities to all cluster artisans."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator or Admin access required.")
+
+    query = db.query(models.ClusterArtisan)
+    if req.cluster_id:
+        query = query.filter(models.ClusterArtisan.cluster_id == uuid.UUID(req.cluster_id))
+    memberships = query.all()
+    artisan_ids = [m.artisan_id for m in memberships]
+
+    count = 0
+    for aid in artisan_ids:
+        notif = models.Notification(
+            user_id=aid,
+            title=f"Scheme Alert: {req.scheme_name}",
+            body=f"Broadcast from Aggregator {current_user.full_name}: {req.message}",
+            type="Scheme"
+        )
+        db.add(notif)
+        count += 1
+
+    db.commit()
+    return {"message": f"Alert broadcasted to {count} artisans successfully.", "recipients_count": count}
+
+
+@app.post("/aggregator/reports/submit")
+def submit_aggregator_report(
+    req: AggregatorReportSubmit,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Aggregator submits cluster digitization & welfare report to MoSJE Admin."""
+    if current_user.role not in ["Aggregator", "Admin"]:
+        raise HTTPException(status_code=403, detail="Aggregator or Admin access required.")
+
+    admins = db.query(models.User).filter(models.User.role == "Admin").all()
+    for admin in admins:
+        notif = models.Notification(
+            user_id=admin.id,
+            title=f"New Cluster Report: {req.cluster_name}",
+            body=f"Aggregator {current_user.full_name} submitted '{req.report_title}' ({req.total_artisans} artisans, {req.active_listings} active listings, {req.support_needed_count} requiring support). Notes: {req.notes or 'None'}",
+            type="System"
+        )
+        db.add(notif)
+
+    db.add(models.AuditLog(
+        action=f"Aggregator Cluster Report: {req.report_title}",
+        entity_type="ClusterReport",
+        entity_id=current_user.id,
+        change_snapshot={
+            "aggregator_name": current_user.full_name,
+            "cluster_name": req.cluster_name,
+            "total_artisans": req.total_artisans,
+            "active_listings": req.active_listings,
+            "support_needed_count": req.support_needed_count,
+            "notes": req.notes
+        }
+    ))
+    db.commit()
+    return {"message": "Cluster report submitted to MoSJE Admin successfully."}
 
 
 # ===== BUYER DASHBOARD ENDPOINTS =====
