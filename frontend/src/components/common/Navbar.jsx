@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldCheck, Sparkles, Store, LogIn, LogOut, UserCheck, LayoutDashboard, Menu, X, Package, BarChart2, Users } from 'lucide-react';
+import { ShieldCheck, Sparkles, Store, LogIn, LogOut, UserCheck, LayoutDashboard, Menu, X, Package, BarChart2, Users, Bell } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnboarding, user, role, onLogout }) {
   const { isAuthenticated, backendStatus } = useAuth();
