@@ -413,6 +413,49 @@ def suggest_price(request: PricingRequest):
 
 # --- Authentication Endpoints ---
 
+class SendOtpRequest(BaseModel):
+    phone: str
+
+class VerifyOtpRequest(BaseModel):
+    phone: str
+    otp: str
+
+@app.post("/auth/send-otp")
+def send_otp_endpoint(req: SendOtpRequest):
+    # Ensure phone number is provided
+    if not req.phone:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+    # Generate OTP
+    from services.sms_service import generate_otp, send_otp_sms
+    otp = generate_otp(req.phone)
+    # Send OTP
+    success = send_otp_sms(req.phone, otp)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send OTP SMS")
+    return {"message": "OTP sent successfully"}
+
+@app.post("/auth/verify-otp")
+def verify_otp_endpoint(req: VerifyOtpRequest, db: Session = Depends(get_db)):
+    from services.sms_service import verify_otp
+    if not verify_otp(req.phone, req.otp):
+        raise HTTPException(status_code=401, detail="Invalid OTP")
+    
+    # Check if user already exists
+    user = db.query(models.User).filter(models.User.phone_number == req.phone).first()
+    if user:
+        # Auto-login the user
+        access_token = auth.create_access_token(data={"sub": user.username})
+        return {
+            "message": "OTP verified",
+            "is_registered": True,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": user.role
+        }
+    
+    return {"message": "OTP verified", "is_registered": False}
+
+
 @app.post("/auth/register", response_model=UserResponse)
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(
@@ -2212,9 +2255,15 @@ def submit_cluster_report(
 # =============================================================================
 
 @app.get("/clusters")
-def get_all_clusters(db: Session = Depends(get_db)):
-    """List all craft clusters in the platform."""
-    clusters = db.query(models.Cluster).all()
+def get_all_clusters(
+    unassigned: Optional[bool] = None,
+    db: Session = Depends(get_db)
+):
+    """List all craft clusters in the platform. Pass ?unassigned=true to list clusters with no aggregator."""
+    query = db.query(models.Cluster)
+    if unassigned is True:
+        query = query.filter(models.Cluster.aggregator_id == None)
+    clusters = query.all()
     results = []
     for c in clusters:
         results.append({
@@ -2227,6 +2276,50 @@ def get_all_clusters(db: Session = Depends(get_db)):
             "total_artisans": c.total_artisans or len(c.artisans)
         })
     return results
+
+
+class JoinClusterRequest(BaseModel):
+    cluster_id: str
+
+
+@app.post("/aggregator/join-cluster")
+def join_cluster(
+    req: JoinClusterRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Allow an Aggregator to adopt/claim an admin-created cluster that has no assigned aggregator."""
+    if not current_user or current_user.role != "Aggregator":
+        raise HTTPException(status_code=403, detail="Only Aggregators can join clusters.")
+
+    try:
+        cluster_uuid = uuid.UUID(req.cluster_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid cluster ID format.")
+
+    cluster = db.query(models.Cluster).filter(models.Cluster.id == cluster_uuid).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found.")
+
+    if cluster.aggregator_id and str(cluster.aggregator_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=409,
+            detail="This cluster is already managed by another aggregator. Contact MoSJE Admin to reassign."
+        )
+
+    # Claim the cluster
+    cluster.aggregator_id = current_user.id
+    db.commit()
+
+    return {
+        "message": f"You are now managing '{cluster.cluster_name}'.",
+        "cluster_id": str(cluster.id),
+        "cluster_name": cluster.cluster_name,
+        "state": cluster.state,
+        "district": cluster.district,
+        "craft_specialization": cluster.craft_specialization
+    }
+
 
 
 @app.get("/clusters/my-clusters")
