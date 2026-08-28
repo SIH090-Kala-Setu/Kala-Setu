@@ -88,6 +88,15 @@ export default function OnboardingWizard({ onComplete, onClose }) {
     setStep(s => s - 1);
   };
 
+  const [resendTimer, setResendTimer] = useState(60);
+
+  useEffect(() => {
+    if (step === 3 && resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, resendTimer]);
+
   const handleSendOtpAndNext = async () => {
     if (!formData.phone || formData.phone.length !== 10) return;
     setSubmitting(true);
@@ -99,6 +108,7 @@ export default function OnboardingWizard({ onComplete, onClose }) {
         body: JSON.stringify({ phone: formData.phone })
       });
       setIsOtpSent(true);
+      setResendTimer(60);
       setStep(3); // Go to OTP step
       showToast('OTP sent successfully', 'success');
     } catch (err) {
@@ -107,6 +117,22 @@ export default function OnboardingWizard({ onComplete, onClose }) {
       setSubmitting(false);
     }
   };
+
+  const handleResendOtp = async () => {
+    if (!formData.phone || formData.phone.length !== 10 || resendTimer > 0) return;
+    try {
+      await fetch(`${getApiBase()}/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: formData.phone })
+      });
+      setResendTimer(60);
+      showToast('OTP resent successfully', 'success');
+    } catch (err) {
+      setError('Failed to resend OTP.');
+    }
+  };
+
 
   const handleVerifyOtpAndNext = async () => {
     if (!otp || otp.length < 4) return;
@@ -337,7 +363,30 @@ export default function OnboardingWizard({ onComplete, onClose }) {
               />
             </div>
             {error && <p style={{ color: 'var(--error)', fontSize: '0.82rem', marginTop: '8px' }}>{error}</p>}
+            
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              {resendTimer > 0 ? (
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Resend OTP in {resendTimer}s</span>
+              ) : (
+                <button
+                  onClick={handleResendOtp}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--primary)',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px' }}>
+
               <button className="btn btn-secondary btn-md" onClick={handlePrev} disabled={submitting}>Back</button>
               <button
                 className="btn btn-primary btn-md"
