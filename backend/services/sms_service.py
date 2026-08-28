@@ -38,11 +38,19 @@ def send_otp_sms(phone: str, otp: str):
 
     text = f"Your KalaSetu verification code is: {otp}. Valid for 10 minutes."
     
+    # Ensure phone has +91 prefix
+    formatted_phone = phone
+    if not formatted_phone.startswith('+'):
+        if len(formatted_phone) == 10:
+            formatted_phone = f"+91{formatted_phone}"
+        else:
+            formatted_phone = f"+{formatted_phone}"
+
     payload = {
         "textMessage": {
             "text": text
         },
-        "phoneNumbers": [phone]
+        "phoneNumbers": [formatted_phone]
     }
     
     try:
