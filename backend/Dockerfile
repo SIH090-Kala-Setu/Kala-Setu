@@ -55,4 +55,4 @@ ENV PORT=8000
 EXPOSE $PORT
 
 # Start with gunicorn for production or fall back to uvicorn for simplicity
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 2
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --log-level info

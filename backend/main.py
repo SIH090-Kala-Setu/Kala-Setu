@@ -22,8 +22,17 @@ from services.image_processor import ImageProcessor
 from services.cataloger import Cataloger, ProductCatalog
 from services.pricing_assistant import PricingAssistant, PriceBreakdown
 
-# Initialize database tables
-models.Base.metadata.create_all(bind=engine)
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize database tables — wrapped so a transient connection hiccup
+# doesn't kill the worker on Render before it binds to the port.
+try:
+    models.Base.metadata.create_all(bind=engine)
+    logger.info("Database tables verified / created successfully.")
+except Exception as e:
+    logger.error(f"DB create_all failed (will retry on first request): {e}")
 
 app = FastAPI(
     title="Artisan AI Backend API",
