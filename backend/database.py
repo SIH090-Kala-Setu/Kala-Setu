@@ -28,8 +28,24 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
 )
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    
-engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
+
+# For Supabase / cloud deployments that require SSL
+# sslmode=require encrypts the connection but skips cert verification
+# (cert verification fails on Windows due to missing CA bundles)
+connect_args = {}
+is_supabase = "supabase.co" in SQLALCHEMY_DATABASE_URL or "supabase.com" in SQLALCHEMY_DATABASE_URL
+if is_supabase or "sslmode=require" in SQLALCHEMY_DATABASE_URL:
+    connect_args = {
+        "sslmode": "require",
+        "sslrootcert": "disable",   # skip CA cert verification on Windows
+    }
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args=connect_args,
+)
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

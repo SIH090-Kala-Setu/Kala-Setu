@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# Secrets – never commit
+.env
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Local DB / dumps
+backup.sql
+*.sqlite3
+*.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
