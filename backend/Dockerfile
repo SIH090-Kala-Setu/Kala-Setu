@@ -33,6 +33,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
+# Pre-download lightweight u2netp ONNX model (~4.5MB) during image build
+# so the server never hangs attempting to download it during runtime requests
+RUN python -c "import rembg; rembg.new_session('u2netp')"
+
 # Copy application source (exclude venv, __pycache__, local .env)
 COPY . .
 RUN rm -rf venv __pycache__ .env backup.sql

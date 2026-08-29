@@ -370,8 +370,9 @@ async def enhance_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
 
     try:
+        from starlette.concurrency import run_in_threadpool
         raw_bytes = await file.read()
-        enhanced_bytes = ImageProcessor.process_artisan_image(raw_bytes)
+        enhanced_bytes = await run_in_threadpool(ImageProcessor.process_artisan_image, raw_bytes)
         
         return StreamingResponse(
             io.BytesIO(enhanced_bytes),
