@@ -1,12 +1,31 @@
-import cv2
 import numpy as np
 from PIL import Image
 import io
 import gc
 import logging
-from rembg import remove, new_session
 
 logger = logging.getLogger(__name__)
+
+# cv2 and rembg are imported lazily inside methods to avoid
+# native-level crashes at module import time on headless servers.
+_cv2 = None
+_rembg_remove = None
+_rembg_new_session = None
+
+def _get_cv2():
+    global _cv2
+    if _cv2 is None:
+        import cv2 as _cv2_module
+        _cv2 = _cv2_module
+    return _cv2
+
+def _get_rembg():
+    global _rembg_remove, _rembg_new_session
+    if _rembg_remove is None:
+        from rembg import remove as _r, new_session as _ns
+        _rembg_remove = _r
+        _rembg_new_session = _ns
+    return _rembg_remove, _rembg_new_session
 
 class ImageProcessor:
     _session = None
@@ -19,6 +38,7 @@ class ImageProcessor:
         """
         if cls._session is None:
             try:
+                _, new_session = _get_rembg()
                 cls._session = new_session('u2netp')
                 logger.info("Initialized lightweight u2netp background removal session.")
             except Exception as e:
@@ -46,6 +66,7 @@ class ImageProcessor:
                 input_image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
 
             # 4. Remove background using lightweight u2netp session
+            remove, _ = _get_rembg()
             session = cls.get_session()
             if session:
                 output_image = remove(input_image, session=session)
@@ -88,6 +109,7 @@ class ImageProcessor:
         subject edges. This fix operates exclusively on the opaque subject pixels.
         """
         try:
+            cv2 = _get_cv2()
             nparr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
 
