@@ -1,14 +1,15 @@
 // API Client with Auth Token Header Interceptor & Error Parsing
 export const getApiBase = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('custom_api_url');
+    if (stored && stored.trim()) return stored.trim().replace(/\/$/, '');
+  }
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/$/, '');
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     return `http://${window.location.hostname}:8000`;
   }
   return 'http://localhost:8000';
 };
-
-const API_BASE = getApiBase();
-
 
 export async function apiClient(endpoint, { body, ...customConfig } = {}) {
   const token = localStorage.getItem('artisan_token');
@@ -36,7 +37,8 @@ export async function apiClient(endpoint, { body, ...customConfig } = {}) {
     config.body = isFormData ? body : JSON.stringify(body);
   }
 
-  const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const apiBase = getApiBase();
+  const url = `${apiBase}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   try {
     const response = await fetch(url, config);

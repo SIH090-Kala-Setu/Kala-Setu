@@ -366,19 +366,26 @@ def read_root():
 
 @app.post("/enhance", summary="AI Studio Background Removal & Lighting Correction")
 async def enhance_image(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
+    # Tolerate missing content_type or octet-stream from canvas blobs and mobile browsers
+    if file.content_type and not (file.content_type.startswith("image/") or file.content_type == "application/octet-stream"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
 
     try:
         from starlette.concurrency import run_in_threadpool
         raw_bytes = await file.read()
+        if not raw_bytes or len(raw_bytes) < 10:
+            raise HTTPException(status_code=400, detail="Uploaded image is empty or corrupted.")
+
         enhanced_bytes = await run_in_threadpool(ImageProcessor.process_artisan_image, raw_bytes)
         
+        safe_filename = file.filename.split('.')[0] if (file.filename and '.' in file.filename) else "enhanced_product"
         return StreamingResponse(
             io.BytesIO(enhanced_bytes),
             media_type="image/png",
-            headers={"Content-Disposition": f"attachment; filename=enhanced_{file.filename.split('.')[0]}.png"}
+            headers={"Content-Disposition": f"attachment; filename={safe_filename}.png"}
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image enhancement failed: {str(e)}")
 

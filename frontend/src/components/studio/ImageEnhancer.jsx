@@ -98,18 +98,32 @@ export default function ImageEnhancer({ onEnhanced, onNextStep, initialImage = n
     setLoading(true);
 
     try {
-      const blob = await enhanceImage(selectedFile);
+      const res = await enhanceImage(selectedFile);
       
-      // Convert blob to Data URL for reliable persistence and image rendering
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result;
+      if (res instanceof Blob) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result;
+          setEnhancedUrl(dataUrl);
+          if (onEnhanced) onEnhanced(dataUrl);
+          showToast('AI background removal & studio lighting completed!', 'success');
+        };
+        reader.readAsDataURL(res);
+      } else if (typeof res === 'string') {
+        const dataUrl = res.startsWith('data:') ? res : `data:image/png;base64,${res}`;
         setEnhancedUrl(dataUrl);
         if (onEnhanced) onEnhanced(dataUrl);
         showToast('AI background removal & studio lighting completed!', 'success');
-      };
-      reader.readAsDataURL(blob);
+      } else if (res && res.enhanced_image) {
+        const dataUrl = res.enhanced_image.startsWith('data:') ? res.enhanced_image : `data:image/png;base64,${res.enhanced_image}`;
+        setEnhancedUrl(dataUrl);
+        if (onEnhanced) onEnhanced(dataUrl);
+        showToast('AI background removal & studio lighting completed!', 'success');
+      } else {
+        throw new Error('Unexpected response format from image processor.');
+      }
     } catch (err) {
+      console.error('Enhance error:', err);
       showToast(err.message || 'Image processing failed', 'error');
     } finally {
       setLoading(false);
