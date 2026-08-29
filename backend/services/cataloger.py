@@ -47,7 +47,19 @@ class Cataloger:
         Transcribes the regional audio voice note, translates, and generates a structured product catalog
         in both English and Hindi using Gemini 1.5 Flash.
         """
-        clean_mime = mime_type.split(';')[0].strip() if mime_type else "audio/webm"
+        raw_mime = mime_type.split(';')[0].strip().lower() if mime_type else "audio/mp4"
+        mime_map = {
+            "audio/x-m4a": "audio/mp4",
+            "audio/m4a": "audio/mp4",
+            "audio/aac": "audio/aac",
+            "audio/mp3": "audio/mp3",
+            "audio/mpeg": "audio/mp3",
+            "audio/wav": "audio/wav",
+            "audio/x-wav": "audio/wav",
+            "audio/webm": "audio/webm",
+            "audio/ogg": "audio/ogg",
+        }
+        clean_mime = mime_map.get(raw_mime, raw_mime if raw_mime.startswith("audio/") else "audio/mp4")
         
         # Check if Gemini client is active
         if self.client:
