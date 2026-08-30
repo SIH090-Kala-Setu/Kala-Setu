@@ -21,6 +21,7 @@ class User(Base):
     state = Column(String(100), nullable=True)
     district = Column(String(100), nullable=True)
     is_verified = Column(Boolean, default=False)
+    fcm_token = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

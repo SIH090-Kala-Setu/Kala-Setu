@@ -26,6 +26,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from services.notification_service import notify, notify_users, notify_role, notify_all
+
 # Initialize database tables — wrapped so a transient connection hiccup
 # doesn't kill the worker on Render before it binds to the port.
 try:
@@ -39,6 +41,39 @@ app = FastAPI(
     description="AI-driven backend for artisan studio cataloging, role dashboards, and B2B linkages.",
     version="2.0.0"
 )
+
+# --- Background scheduler for time-based notifications ---
+from apscheduler.schedulers.background import BackgroundScheduler
+
+def _scheme_expiry_job():
+    """Daily job: notify artisans 3 days before a scheme expires."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        target_date = datetime.date.today() + datetime.timedelta(days=3)
+        schemes = db.query(models.GovtScheme).filter(
+            models.GovtScheme.valid_until == target_date,
+            models.GovtScheme.is_active == True
+        ).all()
+        for scheme in schemes:
+            artisans = db.query(models.User).filter(models.User.role == "Artisan").all()
+            for artisan in artisans:
+                notify(
+                    db, artisan.id,
+                    title=f"Scheme Expiring Soon: {scheme.scheme_name}",
+                    body=f"The scheme '{scheme.scheme_name}' expires on {scheme.valid_until}. Apply before it closes.",
+                    notif_type="Scheme",
+                    data={"scheme_id": str(scheme.id)}
+                )
+        db.commit()
+    except Exception as e:
+        logger.error(f"Scheme expiry job error: {e}")
+    finally:
+        db.close()
+
+_scheduler = BackgroundScheduler()
+_scheduler.add_job(_scheme_expiry_job, "cron", hour=9, minute=0)
+_scheduler.start()
 
 # Enable CORS for frontend connectivity
 app.add_middleware(
@@ -504,7 +539,8 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
         preferred_language=user.preferred_lang,
         state=user.region or "Uttar Pradesh",
         district=user.district or "Varanasi",
-        is_verified=is_verified
+        is_verified=is_verified,
+        fcm_token=None
     )
     
     db.add(new_user)
@@ -566,6 +602,23 @@ def get_me(current_user: models.User = Depends(auth.get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return map_user_to_response(current_user)
+
+
+class FcmTokenRequest(BaseModel):
+    fcm_token: str
+
+@app.post("/auth/fcm-token")
+def register_fcm_token(
+    req: FcmTokenRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Register or update the FCM device token for the current user."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    current_user.fcm_token = req.fcm_token
+    db.commit()
+    return {"message": "FCM token registered."}
 
 # --- Product Catalog & Database Routes ---
 
@@ -729,15 +782,24 @@ def create_inquiry(
         status="Pending"
     )
     db.add(new_inquiry)
-        
-    new_notification = models.Notification(
-        user_id=artisan_user_id,
-        title=f"New Bulk Inquiry ({inquiry.quantity} pcs)",
-        body=f"Buyer {inquiry.buyer_name} ({inquiry.buyer_email}) requested quotation for '{product.title_en}'. Notes: {inquiry.notes or 'No special notes'}",
-        type="Inquiry"
+    db.flush()
+
+    # Notify artisan of new inquiry
+    notify(
+        db, artisan_user_id,
+        title=f"New Inquiry ({inquiry.quantity} pcs)",
+        body=f"{inquiry.buyer_name} wants to buy '{product.title_en}'. Notes: {inquiry.notes or 'None'}",
+        notif_type="Inquiry",
+        data={"inquiry_id": str(new_inquiry.id), "product_id": str(product.id)}
     )
-    db.add(new_notification)
-        
+    # Notify buyer that inquiry was sent
+    notify(
+        db, buyer.id,
+        title="Inquiry Sent",
+        body=f"Your inquiry for '{product.title_en}' has been sent to the artisan. You'll be notified when they respond.",
+        notif_type="Inquiry",
+        data={"inquiry_id": str(new_inquiry.id)}
+    )
     db.commit()
     db.refresh(new_inquiry)
     return map_inquiry_to_response(new_inquiry)
@@ -825,7 +887,25 @@ def verify_artisan(user_id: str, verify: bool = Form(...), db: Session = Depends
             bank_verified=verify
         )
         db.add(verification)
-            
+    
+    # Notify artisan of verification result via Push & In-App DB
+    if verify:
+        notify(
+            db, user.id,
+            title="Aadhaar & Bank Verified ✓",
+            body="Your artisan profile, Aadhaar identity, and bank payout details have been Approved by MoSJE Admin! You can now list and sell products.",
+            notif_type="Verification",
+            data={"type": "Verification", "action": "verified", "status": "Approved"}
+        )
+    else:
+        notify(
+            db, user.id,
+            title="Verification Update",
+            body="Your artisan verification status was revoked or set to unverified. Please check your documents or contact support.",
+            notif_type="Verification",
+            data={"type": "Verification", "action": "unverified", "status": "Rejected"}
+        )
+
     db.commit()
     db.refresh(user)
     return map_user_to_response(user)
@@ -944,6 +1024,14 @@ def create_cluster(
         aggregator_id=current_user.id
     )
     db.add(new_cluster)
+    if current_user.role == "Aggregator":
+        notify(
+            db, current_user.id,
+            title="Cluster Created & Assigned ✓",
+            body=f"Cluster '{new_cluster.cluster_name}' ({new_cluster.district}, {new_cluster.state}) created and assigned to you.",
+            notif_type="System",
+            data={"type": "Cluster", "cluster_id": str(new_cluster.id)}
+        )
     db.commit()
     db.refresh(new_cluster)
     return new_cluster
@@ -997,6 +1085,14 @@ def add_artisan_to_cluster(
         if artisan.artisan_profile:
             artisan.artisan_profile.cluster_name = cluster.cluster_name
             
+        # Notify artisan about cluster membership
+        notify(
+            db, artisan.id,
+            title="Joined Craft Cluster 🤝",
+            body=f"You have been added to the '{cluster.cluster_name}' cluster by your aggregator.",
+            notif_type="System",
+            data={"type": "Cluster", "cluster_id": str(cluster.id)}
+        )
         db.commit()
         db.refresh(artisan)
         
@@ -1100,6 +1196,33 @@ def review_verification(
     # Update main user verification status
     verification.artisan.is_verified = (review.status == "Approved")
     
+    # Notify artisan of verification result with detailed breakdown
+    if review.status == "Approved":
+        notif_title = "Artisan KYC Approved ✓"
+        notif_body = "Your Aadhaar identity and bank details have been Approved by MoSJE Admin! Your account is fully verified for selling."
+    elif review.aadhaar_verified and not review.bank_verified:
+        notif_title = "Aadhaar Verified ✓ (Bank Pending)"
+        notif_body = "Your Aadhaar identity is verified. Please verify your bank account details for direct payouts."
+    elif review.bank_verified and not review.aadhaar_verified:
+        notif_title = "Bank Verified ✓ (Aadhaar Pending)"
+        notif_body = "Your bank details are verified. Please complete Aadhaar verification."
+    else:
+        notif_title = "KYC Verification Update"
+        notif_body = f"Your verification was not approved. Reason: {review.rejection_reason or 'Please re-submit your documents.'}"
+
+    notify(
+        db, verification.artisan_id,
+        title=notif_title,
+        body=notif_body,
+        notif_type="Verification",
+        data={
+            "type": "Verification",
+            "status": review.status,
+            "aadhaar_verified": str(review.aadhaar_verified),
+            "bank_verified": str(review.bank_verified)
+        }
+    )
+    
     # Audit trail
     log = models.AuditLog(
         admin_id=current_user.admin_profile.id if current_user.admin_profile else None,
@@ -1138,6 +1261,23 @@ def create_govt_scheme(
     db.add(new_scheme)
     db.commit()
     db.refresh(new_scheme)
+
+    # Notify all artisans and aggregators about the new scheme via Push & DB
+    notify_role(
+        db, "Artisan",
+        title=f"🏛️ New Govt Scheme: {new_scheme.scheme_name}",
+        body=f"A new government scheme '{new_scheme.scheme_name}' is open. {new_scheme.description[:120]}...",
+        notif_type="Scheme",
+        data={"type": "Scheme", "scheme_id": str(new_scheme.id)}
+    )
+    notify_role(
+        db, "Aggregator",
+        title=f"🏛️ New Scheme for Cluster: {new_scheme.scheme_name}",
+        body=f"New scheme '{new_scheme.scheme_name}' available to relay to your cluster artisans.",
+        notif_type="Scheme",
+        data={"type": "Scheme", "scheme_id": str(new_scheme.id)}
+    )
+    db.commit()
     return new_scheme
 
 @app.get("/admin/schemes", response_model=List[SchemeResponse])
@@ -1171,13 +1311,13 @@ def broadcast_scheme_alert(
         
     # Send notification to all matching artisans
     for artisan in artisans:
-        notification = models.Notification(
-            user_id=artisan.id,
-            title=f"New Government Scheme: {scheme.scheme_name}",
-            body=f"You may be eligible for '{scheme.scheme_name}'. Description: {scheme.description[:100]}...",
-            type="Update"
+        notify(
+            db, artisan.id,
+            title=f"🏛️ Government Scheme Alert: {scheme.scheme_name}",
+            body=f"You may be eligible for '{scheme.scheme_name}'. {scheme.description[:100]}...",
+            notif_type="Scheme",
+            data={"type": "Scheme", "scheme_id": str(scheme.id)}
         )
-        db.add(notification)
         
     # Save alert log
     alert_log = models.SchemeAlert(
@@ -1194,6 +1334,41 @@ def broadcast_scheme_alert(
         "message": f"Successfully broadcasted scheme alerts to {len(artisans)} artisans.",
         "recipients_count": len(artisans)
     }
+
+@app.post("/admin/schemes/notify-expiring")
+def notify_expiring_schemes(
+    days_threshold: int = 14,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Scan active schemes expiring within days_threshold and push notification alerts to artisans."""
+    if not current_user or current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required.")
+
+    today = datetime.date.today()
+    threshold_date = today + datetime.timedelta(days=days_threshold)
+    
+    expiring = db.query(models.GovtScheme).filter(
+        models.GovtScheme.is_active == True,
+        models.GovtScheme.valid_until != None,
+        models.GovtScheme.valid_until >= today,
+        models.GovtScheme.valid_until <= threshold_date
+    ).all()
+
+    alerted_count = 0
+    for scheme in expiring:
+        days_left = (scheme.valid_until - today).days
+        notify_role(
+            db, "Artisan",
+            title=f"⏳ Scheme Expiring Soon: {scheme.scheme_name}",
+            body=f"The government scheme '{scheme.scheme_name}' closes in {days_left} days (on {scheme.valid_until}). Apply now before the deadline!",
+            notif_type="Scheme",
+            data={"type": "Scheme", "scheme_id": str(scheme.id), "action": "expiring_soon"}
+        )
+        alerted_count += 1
+
+    db.commit()
+    return {"message": f"Sent expiring alerts for {alerted_count} schemes.", "schemes_count": alerted_count}
 
 @app.post("/admin/exhibitions", response_model=ExhibitionResponse)
 def create_exhibition(
@@ -1218,6 +1393,23 @@ def create_exhibition(
     db.add(new_exhib)
     db.commit()
     db.refresh(new_exhib)
+
+    # Notify all artisans and aggregators about the new exhibition via Push & DB
+    notify_role(
+        db, "Artisan",
+        title=f"🎪 New Exhibition: {new_exhib.name}",
+        body=f"National exhibition '{new_exhib.name}' at {new_exhib.location} ({new_exhib.start_date} – {new_exhib.end_date}) is open for stall registration!",
+        notif_type="System",
+        data={"type": "Exhibition", "exhibition_id": str(new_exhib.id)}
+    )
+    notify_role(
+        db, "Aggregator",
+        title=f"🎪 New Exhibition for Artisans: {new_exhib.name}",
+        body=f"Exhibition announced at {new_exhib.location}. Nominate and assist cluster artisans in registering stalls.",
+        notif_type="System",
+        data={"type": "Exhibition", "exhibition_id": str(new_exhib.id)}
+    )
+    db.commit()
     return new_exhib
 
 @app.get("/admin/exhibitions", response_model=List[ExhibitionResponse])
@@ -1300,15 +1492,20 @@ def review_exhibition_registration(
         raise HTTPException(status_code=404, detail="Registration record not found.")
         
     reg.status = status
-    
-    # Notify artisan
-    noti = models.Notification(
-        user_id=reg.artisan_id,
-        title=f"Exhibition Registration {status}",
-        body=f"Your registration status for exhibition '{reg.exhibition.name}' has been updated to {status}.",
-        type="Update"
+    if status == "Approved":
+        notif_title = f"🎪 Stall Approved: {reg.exhibition.name}"
+        notif_body = f"Congratulations! Your stall application for '{reg.exhibition.name}' has been Approved by MoSJE. See you at the exhibition!"
+    else:
+        notif_title = f"Exhibition Application: {reg.exhibition.name}"
+        notif_body = f"Your stall application for '{reg.exhibition.name}' was not accepted."
+
+    notify(
+        db, reg.artisan_id,
+        title=notif_title,
+        body=notif_body,
+        notif_type="System",
+        data={"type": "Exhibition", "exhibition_id": str(reg.exhibition_id), "status": status}
     )
-    db.add(noti)
     db.commit()
     return {"message": "Registration updated successfully.", "status": status}
 
@@ -1867,6 +2064,15 @@ def update_product_stock(
     product.stock_count = stock_count
     if stock_count == 0:
         product.status = "Sold Out"
+        # Notify artisan their product is out of stock
+        if product.artisan and product.artisan.user_id:
+            notify(
+                db, product.artisan.user_id,
+                title="Product Out of Stock",
+                body=f"Your product '{product.title_en}' is now out of stock. Update your inventory to keep selling.",
+                notif_type="Update",
+                data={"product_id": str(product.id)}
+            )
     db.commit()
     return {"message": "Stock updated.", "id": product_id, "stock_count": stock_count, "status": product.status}
 
@@ -2218,6 +2424,23 @@ def onboard_artisan_assisted(
         )
         db.add(verif)
 
+        # Notify newly onboarded artisan via Push & DB
+        notify(
+            db, new_user.id,
+            title="Welcome to KalaSetu! 🎉",
+            body=f"You have been onboarded to the '{req.cluster_name or 'Artisan'}' cluster by aggregator {current_user.full_name}.",
+            notif_type="System",
+            data={"type": "Onboarding", "cluster_name": req.cluster_name or ""}
+        )
+        # Notify aggregator
+        notify(
+            db, current_user.id,
+            title="Artisan Onboarded ✓",
+            body=f"Artisan {new_user.full_name} ({req.craft_type}) successfully onboarded and queued for verification.",
+            notif_type="System",
+            data={"type": "Artisan", "artisan_id": str(new_user.id)}
+        )
+
         db.commit()
         db.refresh(new_user)
         return {
@@ -2269,18 +2492,17 @@ def relay_scheme_to_cluster(
 
     artisans = query.all()
 
-    # Create notifications for all matched artisans
-    scheme_title = "MoSJE Government Scheme Alert"
+    # Create notifications and push alerts for all matched artisans
+    scheme_title = "🏛️ MoSJE Government Scheme Alert"
     scheme_body = req.custom_message or f"New welfare & financial support scheme available for {req.target_craft or 'all handicrafts'} artisans in your cluster."
 
-    for artisan in artisans:
-        db.add(models.Notification(
-            user_id=artisan.id,
-            title=scheme_title,
-            body=scheme_body,
-            type="Scheme",
-            lang_tag=artisan.preferred_language or "hi"
-        ))
+    notify_users(
+        db, [a.id for a in artisans],
+        title=scheme_title,
+        body=scheme_body,
+        notif_type="Scheme",
+        data={"type": "Scheme", "scheme_id": req.scheme_id or ""}
+    )
 
     db.commit()
     return {
@@ -2390,6 +2612,14 @@ def join_cluster(
 
     # Claim the cluster
     cluster.aggregator_id = current_user.id
+
+    notify(
+        db, current_user.id,
+        title="Cluster Assigned",
+        body=f"You have been assigned to manage '{cluster.cluster_name}' ({cluster.district}, {cluster.state}).",
+        notif_type="System",
+        data={"cluster_id": str(cluster.id)}
+    )
     db.commit()
 
     return {
@@ -2579,12 +2809,13 @@ def get_buyer_dashboard(
 def respond_to_inquiry(
     inquiry_id: str,
     response_message: str = Form(...),
+    status: Optional[str] = Form(None),  # "Accepted", "Denied", "Rejected", "Responded"
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """Artisan responds to a buyer inquiry."""
+    """Artisan responds to a buyer inquiry (accept, deny, or reply)."""
     inquiry = db.query(models.BuyerInquiry).filter(
-        models.BuyerInquiry.id == inquiry_id
+        models.BuyerInquiry.id == uuid.UUID(inquiry_id)
     ).first()
     if not inquiry:
         raise HTTPException(status_code=404, detail="Inquiry not found.")
@@ -2592,21 +2823,32 @@ def respond_to_inquiry(
     if str(inquiry.artisan_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Not authorized to respond to this inquiry.")
 
-    inquiry.status = "Responded"
+    new_status = status or "Responded"
+    inquiry.status = new_status
     inquiry.responded_at = datetime.datetime.utcnow()
 
-    # Send notification to buyer
-    notification = models.Notification(
-        user_id=inquiry.buyer_id,
-        title="Inquiry Responded",
-        body=f"{current_user.full_name} has responded to your inquiry: {response_message[:200]}",
-        type="Inquiry",
-        lang_tag="en"
-    )
-    db.add(notification)
-    db.commit()
+    prod_title = inquiry.product.title_en if inquiry.product else "Craft Item"
 
-    return {"message": "Response sent successfully.", "inquiry_id": inquiry_id, "status": "Responded"}
+    # Craft customized notification based on decision
+    if new_status == "Accepted":
+        notif_title = f"🎉 Inquiry Accepted: {prod_title}"
+        notif_body = f"Artisan {current_user.full_name} accepted your inquiry ({inquiry.quantity} pcs)! Note: {response_message}"
+    elif new_status in ["Denied", "Rejected"]:
+        notif_title = f"Inquiry Declined: {prod_title}"
+        notif_body = f"Artisan {current_user.full_name} was unable to accept your inquiry: {response_message}"
+    else:
+        notif_title = f"💬 Response from Artisan: {current_user.full_name}"
+        notif_body = f"Regarding '{prod_title}': {response_message[:200]}"
+
+    notify(
+        db, inquiry.buyer_id,
+        title=notif_title,
+        body=notif_body,
+        notif_type="Inquiry",
+        data={"type": "Inquiry", "inquiry_id": str(inquiry.id), "status": new_status}
+    )
+    db.commit()
+    return {"message": "Response sent successfully.", "inquiry_id": inquiry_id, "status": new_status}
 
 
 # ===== NOTIFICATION MARK-READ ENDPOINT =====

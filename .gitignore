@@ -16,6 +16,10 @@ backend/.env
 backend/.env.*
 frontend/.env
 frontend/.env.*
+*firebase-credentials*.json
+*serviceAccountKey*.json
+backend/firebase-credentials.json
+backend/serviceAccountKey.json
 
 # Python Cache & Bytecode
 __pycache__/
