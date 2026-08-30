@@ -37,11 +37,11 @@ export default function AuditTrails() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Timestamp</th>
-              <th>Admin User</th>
-              <th>Action Taken</th>
-              <th>Entity Reference</th>
-              <th>Change Snapshot</th>
+              <th style={{ minWidth: '150px' }}>Timestamp</th>
+              <th style={{ minWidth: '130px' }}>Admin User</th>
+              <th style={{ minWidth: '140px' }}>Action Taken</th>
+              <th style={{ minWidth: '150px' }}>Entity Reference</th>
+              <th style={{ minWidth: '180px' }}>Change Snapshot</th>
             </tr>
           </thead>
           <tbody>

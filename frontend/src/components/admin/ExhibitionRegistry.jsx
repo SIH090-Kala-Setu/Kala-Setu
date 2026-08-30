@@ -97,14 +97,14 @@ export default function ExhibitionRegistry({ onActionComplete }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="admin-header-flex">
         <div>
           <h3>National Fairs & Exhibitions Directory</h3>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
             Coordinate Shilp Samagam, Surajkund Mela, and Dilli Haat digitizations and review artisan signups.
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setIsScheduleOpen(true)}>
+        <button className="btn btn-primary btn-sm" onClick={() => setIsScheduleOpen(true)} style={{ whiteSpace: 'nowrap' }}>
           <Plus size={16} />
           <span>Schedule Exhibition</span>
         </button>
@@ -115,12 +115,12 @@ export default function ExhibitionRegistry({ onActionComplete }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Exhibition Name</th>
-              <th>Location Venue</th>
-              <th>Duration</th>
-              <th>Status</th>
-              <th>Lifecycle Stage</th>
-              <th>Actions</th>
+              <th style={{ minWidth: '160px' }}>Exhibition Name</th>
+              <th style={{ minWidth: '130px' }}>Location Venue</th>
+              <th style={{ minWidth: '150px' }}>Duration</th>
+              <th style={{ minWidth: '100px' }}>Status</th>
+              <th style={{ minWidth: '130px' }}>Lifecycle Stage</th>
+              <th style={{ minWidth: '130px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -175,7 +175,7 @@ export default function ExhibitionRegistry({ onActionComplete }) {
                     </select>
                   </td>
                   <td>
-                    <button className="btn btn-secondary btn-sm" onClick={() => handleSelectExhib(e)}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => handleSelectExhib(e)} style={{ whiteSpace: 'nowrap' }}>
                       <Users size={14} />
                       <span>View Signups</span>
                     </button>
@@ -198,11 +198,11 @@ export default function ExhibitionRegistry({ onActionComplete }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Artisan Name</th>
-                  <th>Contact Info</th>
-                  <th>Craft & State</th>
-                  <th>Registration Status</th>
-                  <th>Review Decision</th>
+                  <th style={{ minWidth: '140px' }}>Artisan Name</th>
+                  <th style={{ minWidth: '130px' }}>Contact Info</th>
+                  <th style={{ minWidth: '140px' }}>Craft & State</th>
+                  <th style={{ minWidth: '110px' }}>Registration Status</th>
+                  <th style={{ minWidth: '140px' }}>Review Decision</th>
                 </tr>
               </thead>
               <tbody>

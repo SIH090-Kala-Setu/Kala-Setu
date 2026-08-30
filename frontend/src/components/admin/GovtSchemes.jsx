@@ -129,14 +129,14 @@ export default function GovtSchemes({ onActionComplete }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="admin-header-flex">
         <div>
           <h3>Government Schemes & Support Policies</h3>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
             Publish MoSJE financial assistance programs and push targeted notifications to eligible artisan groups.
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setIsCreateOpen(true)}>
+        <button className="btn btn-primary btn-sm" onClick={() => setIsCreateOpen(true)} style={{ whiteSpace: 'nowrap' }}>
           <Plus size={16} />
           <span>Add Support Scheme</span>
         </button>
@@ -147,11 +147,11 @@ export default function GovtSchemes({ onActionComplete }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Scheme Title & Details</th>
-              <th>Eligibility Criteria</th>
-              <th>Status</th>
-              <th>Valid Until</th>
-              <th>Actions</th>
+              <th style={{ minWidth: '180px' }}>Scheme Title & Details</th>
+              <th style={{ minWidth: '160px' }}>Eligibility Criteria</th>
+              <th style={{ minWidth: '100px' }}>Status</th>
+              <th style={{ minWidth: '110px' }}>Valid Until</th>
+              <th style={{ minWidth: '150px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -183,7 +183,7 @@ export default function GovtSchemes({ onActionComplete }) {
                   </td>
                   <td>{s.valid_until ? new Date(s.valid_until).toLocaleDateString() : 'Continuous'}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div className="table-actions">
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={() => handleOpenBroadcast(s)}

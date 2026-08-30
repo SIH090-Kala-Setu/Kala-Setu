@@ -37,26 +37,26 @@ export default function BuyerVerification({ onActionComplete }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="admin-header-flex">
         <div>
           <h3>B2B Buyer Verification & Badging</h3>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
             Verify corporate buyers and export houses before permitting direct artisan bulk linkages to prevent exploitation.
           </p>
         </div>
-        <span className="badge badge-info">{buyers.length} Registered Buyers</span>
+        <span className="badge badge-info" style={{ alignSelf: 'flex-start' }}>{buyers.length} Registered Buyers</span>
       </div>
 
       <div className="data-table-container">
         <table className="data-table">
           <thead>
             <tr>
-              <th>Buyer Name & Account</th>
-              <th>Contact Details</th>
-              <th>Location</th>
-              <th>Inquiries Sent</th>
-              <th>Verification Status</th>
-              <th>Action</th>
+              <th style={{ minWidth: '150px' }}>Buyer Name & Account</th>
+              <th style={{ minWidth: '160px' }}>Contact Details</th>
+              <th style={{ minWidth: '110px' }}>Location</th>
+              <th style={{ minWidth: '110px' }}>Inquiries Sent</th>
+              <th style={{ minWidth: '130px' }}>Verification Status</th>
+              <th style={{ minWidth: '130px' }}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -95,23 +95,25 @@ export default function BuyerVerification({ onActionComplete }) {
                     </span>
                   </td>
                   <td>
-                    {!b.is_verified ? (
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleToggleVerification(b.id, true)}
-                      >
-                        <ShieldCheck size={14} />
-                        <span>Verify Buyer</span>
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleToggleVerification(b.id, false)}
-                      >
-                        <ShieldAlert size={14} />
-                        <span>Revoke Badge</span>
-                      </button>
-                    )}
+                    <div className="table-actions">
+                      {!b.is_verified ? (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleToggleVerification(b.id, true)}
+                        >
+                          <ShieldCheck size={14} />
+                          <span>Verify Buyer</span>
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleToggleVerification(b.id, false)}
+                        >
+                          <ShieldAlert size={14} />
+                          <span>Revoke Badge</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

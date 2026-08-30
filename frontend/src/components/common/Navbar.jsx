@@ -1,10 +1,40 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldCheck, Sparkles, Store, LogIn, LogOut, UserCheck, LayoutDashboard, Menu, X, Package, BarChart2, Users, Bell } from 'lucide-react';
+import {
+  ShieldCheck,
+  Building2,
+  ScrollText,
+  Tent,
+  PackageCheck,
+  UserCheck,
+  BarChart3,
+  FileClock,
+  Sparkles,
+  Store,
+  LogIn,
+  LogOut,
+  LayoutDashboard,
+  Menu,
+  X,
+  Package,
+  BarChart2,
+  Bell
+} from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnboarding, user, role, onLogout }) {
+export default function Navbar({ activeTab, setActiveTab, adminPanel, setAdminPanel, onOpenAuth, onOpenOnboarding, user, role, onLogout }) {
   const { isAuthenticated, backendStatus } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const adminNavItems = [
+    { id: 'verifications', label: 'Artisan Verifications', icon: <ShieldCheck size={16} /> },
+    { id: 'clusters', label: 'Cooperative Clusters', icon: <Building2 size={16} /> },
+    { id: 'schemes', label: 'Government Schemes', icon: <ScrollText size={16} /> },
+    { id: 'exhibitions', label: 'Exhibition Registry', icon: <Tent size={16} /> },
+    { id: 'moderation', label: 'Product Moderation', icon: <PackageCheck size={16} /> },
+    { id: 'buyers', label: 'Buyer Verification', icon: <UserCheck size={16} /> },
+    { id: 'analytics', label: 'Platform Impact', icon: <BarChart3 size={16} /> },
+    { id: 'audit', label: 'System Audit Trails', icon: <FileClock size={16} /> }
+  ];
 
   const navItems = {
     Admin: [
@@ -108,19 +138,43 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth, onOpenOnbo
       
       {mobileMenuOpen && (
         <div className="mobile-nav-drawer">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-            {tabs.map(tab => (
-               <button
-                 key={tab.id}
-                 className={`nav-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                 onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
-                 style={{ width: '100%', justifyContent: 'flex-start', padding: '12px 16px', borderRadius: '10px' }}
-               >
-                 {tab.icon}
-                 <span style={{ fontSize: '0.95rem' }}>{tab.label}</span>
-               </button>
-            ))}
-          </div>
+          {/* If role is Admin, show full list of Admin management sections */}
+          {role === 'Admin' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 8px 6px' }}>
+                Admin Management Console
+              </div>
+              {adminNavItems.map(item => (
+                <button
+                  key={item.id}
+                  className={`nav-tab-btn ${activeTab === 'admin' && adminPanel === item.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('admin');
+                    if (setAdminPanel) setAdminPanel(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  style={{ width: '100%', justifyContent: 'flex-start', padding: '11px 14px', borderRadius: '10px' }}
+                >
+                  {item.icon}
+                  <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+              {tabs.map(tab => (
+                 <button
+                   key={tab.id}
+                   className={`nav-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                   onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
+                   style={{ width: '100%', justifyContent: 'flex-start', padding: '12px 16px', borderRadius: '10px' }}
+                 >
+                   {tab.icon}
+                   <span style={{ fontSize: '0.95rem' }}>{tab.label}</span>
+                 </button>
+              ))}
+            </div>
+          )}
 
           {!isAuthenticated && (
             <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '8px' }}>

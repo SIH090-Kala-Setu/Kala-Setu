@@ -129,14 +129,14 @@ export default function ClusterManagement({ onActionComplete }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="admin-header-flex">
         <div>
           <h3>Artisan Cooperatives & Clusters</h3>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
             Manage cluster programs, track member artisans, and evaluate cluster-level performance.
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setIsCreateOpen(true)}>
+        <button className="btn btn-primary btn-sm" onClick={() => setIsCreateOpen(true)} style={{ whiteSpace: 'nowrap' }}>
           <Plus size={16} />
           <span>Register New Cluster</span>
         </button>
@@ -147,11 +147,11 @@ export default function ClusterManagement({ onActionComplete }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Cluster Name</th>
-              <th>Craft Specialization</th>
-              <th>State & District</th>
-              <th>Artisans Enrolled</th>
-              <th>Actions</th>
+              <th style={{ minWidth: '160px' }}>Cluster Name</th>
+              <th style={{ minWidth: '150px' }}>Craft Specialization</th>
+              <th style={{ minWidth: '130px' }}>State & District</th>
+              <th style={{ minWidth: '110px' }}>Artisans Enrolled</th>
+              <th style={{ minWidth: '160px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -181,7 +181,7 @@ export default function ClusterManagement({ onActionComplete }) {
                     <span className="badge badge-purple badge-sm">{c.total_artisans || 0} member(s)</span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div className="table-actions">
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => handleSelectCluster(c)}
@@ -210,7 +210,7 @@ export default function ClusterManagement({ onActionComplete }) {
       {/* Selected Cluster Members Subview */}
       {selectedCluster && (
         <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div className="admin-header-flex" style={{ marginBottom: '16px' }}>
             <h4>
               Members of <span style={{ color: 'var(--primary)' }}>{selectedCluster.cluster_name}</span>
             </h4>
@@ -224,10 +224,10 @@ export default function ClusterManagement({ onActionComplete }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Artisan Name</th>
-                  <th>Contact Phone</th>
-                  <th>Location</th>
-                  <th>KYC Status</th>
+                  <th style={{ minWidth: '150px' }}>Artisan Name</th>
+                  <th style={{ minWidth: '130px' }}>Contact Phone</th>
+                  <th style={{ minWidth: '130px' }}>Location</th>
+                  <th style={{ minWidth: '110px' }}>KYC Status</th>
                 </tr>
               </thead>
               <tbody>

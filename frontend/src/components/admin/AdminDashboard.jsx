@@ -24,8 +24,10 @@ import {
   IndianRupee
 } from 'lucide-react';
 
-export default function AdminDashboard() {
-  const [activePanel, setActivePanel] = useState('verifications');
+export default function AdminDashboard({ activePanel: propActivePanel, setActivePanel: propSetActivePanel }) {
+  const [localActivePanel, setLocalActivePanel] = useState('verifications');
+  const activePanel = propActivePanel || localActivePanel;
+  const setActivePanel = propSetActivePanel || setLocalActivePanel;
   const [metrics, setMetrics] = useState(null);
   const { user } = useAuth();
 

@@ -67,7 +67,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
   return (
     <div>
       {/* Header with Title & Filter Tabs */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
+      <div className="admin-header-flex">
         <div>
           <h3>Artisan Identity & Onboarding Approval Pipeline</h3>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -75,7 +75,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div>
           <div className="filter-btn-group">
             {['all', 'Pending', 'Approved', 'Rejected'].map((st) => (
               <button
@@ -98,7 +98,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="auth-input"
-          style={{ maxWidth: '400px' }}
+          style={{ width: '100%', maxWidth: '420px' }}
         />
       </div>
 
@@ -107,12 +107,12 @@ export default function ArtisanVerifications({ onActionComplete }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Artisan & Craft</th>
-              <th>Location & Contact</th>
-              <th>Aadhaar & Bank Status</th>
-              <th>KYC Status</th>
-              <th>Review Decision</th>
+              <th style={{ width: '90px' }}>ID</th>
+              <th style={{ minWidth: '160px' }}>Artisan & Craft</th>
+              <th style={{ minWidth: '140px' }}>Location & Contact</th>
+              <th style={{ minWidth: '150px' }}>Aadhaar & Bank Status</th>
+              <th style={{ minWidth: '110px' }}>KYC Status</th>
+              <th style={{ minWidth: '140px' }}>Review Decision</th>
             </tr>
           </thead>
           <tbody>
@@ -196,7 +196,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
                   </td>
                   <td>
                     {v.status === 'Pending' ? (
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                      <div className="table-actions">
                         <button
                           className="btn btn-success btn-sm"
                           onClick={() => handleReview(v.id, 'Approved')}

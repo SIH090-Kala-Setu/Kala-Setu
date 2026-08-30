@@ -69,14 +69,14 @@ export default function ProductModeration({ onActionComplete }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="admin-header-flex">
         <div>
           <h3>Product Listing Moderation Queue</h3>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
             Review artisan listings queued for quality assurance and compliance before they go live.
           </p>
         </div>
-        <span className="badge badge-warning">
+        <span className="badge badge-warning" style={{ alignSelf: 'flex-start' }}>
           {flaggedProducts.length} Listing(s) Pending Review
         </span>
       </div>
@@ -86,13 +86,13 @@ export default function ProductModeration({ onActionComplete }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Preview</th>
-              <th>Product Title</th>
-              <th>Artisan & Cooperative</th>
-              <th>Category & Material</th>
-              <th>Retail / B2B Price</th>
-              <th>Stock</th>
-              <th>Moderation Action</th>
+              <th style={{ width: '60px' }}>Preview</th>
+              <th style={{ minWidth: '150px' }}>Product Title</th>
+              <th style={{ minWidth: '150px' }}>Artisan & Cooperative</th>
+              <th style={{ minWidth: '130px' }}>Category & Material</th>
+              <th style={{ minWidth: '120px' }}>Retail / B2B Price</th>
+              <th style={{ minWidth: '80px' }}>Stock</th>
+              <th style={{ minWidth: '150px' }}>Moderation Action</th>
             </tr>
           </thead>
           <tbody>
@@ -155,7 +155,7 @@ export default function ProductModeration({ onActionComplete }) {
                   </td>
                   <td>{p.stock} pcs</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div className="table-actions">
                       <button
                         className="btn btn-success btn-sm"
                         onClick={() => handleApprove(p.id)}

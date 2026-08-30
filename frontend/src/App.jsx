@@ -33,6 +33,7 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState(getDefaultTab());
+  const [adminPanel, setAdminPanel] = useState('verifications');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -81,6 +82,8 @@ export default function App() {
           setSelectedProductId(null);
           setActiveTab(tab);
         }}
+        adminPanel={adminPanel}
+        setAdminPanel={setAdminPanel}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenOnboarding={() => setShowOnboarding(true)}
         user={user}
@@ -99,7 +102,9 @@ export default function App() {
         ) : (
           <>
             {/* ADMIN */}
-            {isAdmin && activeTab === 'admin' && <AdminDashboard />}
+            {isAdmin && activeTab === 'admin' && (
+              <AdminDashboard activePanel={adminPanel} setActivePanel={setAdminPanel} />
+            )}
 
             {/* ARTISAN */}
             {isArtisan && activeTab === 'artisan-dashboard' && <ArtisanDashboard onNavigate={navigate} />}
