@@ -105,12 +105,6 @@ cataloger_service = Cataloger()
 pricing_service = PricingAssistant()
 
 # --- Pydantic Schemas ---
-class PricingRequest(BaseModel):
-    category: str
-    material_cost: float
-    manufacturing_hours: float
-    product_description: str
-
 class UserRegister(BaseModel):
     username: str
     password: str
@@ -470,13 +464,51 @@ async def generate_catalog(
         )
 
 @app.post("/suggest-price", response_model=PriceBreakdown, summary="Dynamic Pricing Assistant")
-def suggest_price(request: PricingRequest):
+async def suggest_price(
+    category: str = Form(...),
+    material_cost: float = Form(...),
+    manufacturing_hours: float = Form(4.0),
+    product_description: str = Form(""),
+    image: UploadFile = File(None),
+    db: Session = Depends(get_db),
+):
     try:
+        # 1. Read image bytes if provided
+        image_bytes = None
+        if image:
+            image_bytes = await image.read()
+
+        # 2. Query DB for market benchmarks from comparable active products
+        from sqlalchemy import func
+        row = (
+            db.query(
+                func.avg(models.Product.base_price).label("avg"),
+                func.min(models.Product.base_price).label("min"),
+                func.max(models.Product.base_price).label("max"),
+                func.count(models.Product.id).label("count"),
+            )
+            .filter(
+                models.Product.status == "Active",
+                models.Product.craft_category.ilike(f"%{category.split('&')[0].strip()}%"),
+            )
+            .first()
+        )
+        market_avg = float(row.avg) if row and row.avg else 0.0
+        market_min = float(row.min) if row and row.min else 0.0
+        market_max = float(row.max) if row and row.max else 0.0
+        comparable_count = int(row.count) if row and row.count else 0
+
+        # 3. Calculate price
         breakdown = pricing_service.calculate_suggested_price(
-            category=request.category,
-            material_cost=request.material_cost,
-            manufacturing_hours=request.manufacturing_hours,
-            product_description=request.product_description
+            category=category,
+            material_cost=material_cost,
+            manufacturing_hours=manufacturing_hours,
+            product_description=product_description,
+            image_bytes=image_bytes,
+            market_avg=market_avg,
+            market_min=market_min,
+            market_max=market_max,
+            comparable_count=comparable_count,
         )
         return breakdown
     except Exception as e:
