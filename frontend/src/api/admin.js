@@ -1,10 +1,18 @@
 import { apiClient } from './client';
 
 // ─── 1. Artisan KYC Verifications ───────────────────────────────────────────
-export async function getVerifications(statusFilter = null) {
+export async function getVerifications(statusFilter = null, kycFilter = null) {
   let url = '/admin/verifications';
+  const params = new URLSearchParams();
   if (statusFilter && statusFilter !== 'all') {
-    url += `?status_filter=${encodeURIComponent(statusFilter)}`;
+    params.append('status_filter', statusFilter);
+  }
+  if (kycFilter && kycFilter !== 'all') {
+    params.append('kyc_filter', kycFilter);
+  }
+  const queryString = params.toString();
+  if (queryString) {
+    url += `?${queryString}`;
   }
   return apiClient(url);
 }

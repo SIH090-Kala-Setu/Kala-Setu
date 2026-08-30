@@ -1000,6 +1000,7 @@ def get_cluster_artisans(cluster_id: str, db: Session = Depends(get_db)):
 @app.get("/admin/verifications")
 def get_verifications(
     status_filter: Optional[str] = None,
+    kyc_filter: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -1007,13 +1008,37 @@ def get_verifications(
         raise HTTPException(status_code=403, detail="Admin authorization required.")
         
     query = db.query(models.ArtisanVerification)
-    if status_filter:
+    if status_filter and status_filter != "all":
         query = query.filter(models.ArtisanVerification.status == status_filter)
     verifications = query.order_by(models.ArtisanVerification.submitted_at.desc()).all()
     results = []
     for v in verifications:
         artisan = v.artisan
         profile = artisan.artisan_profile if artisan else None
+        
+        aadhaar_num = (profile.aadhaar_number if profile else None) or ""
+        bank_acc = (profile.bank_account if profile else None) or ""
+        ifsc = (profile.ifsc_code if profile else None) or ""
+        upi = (profile.upi_id if profile else None) or ""
+        
+        has_aadhaar = bool(aadhaar_num and str(aadhaar_num).strip())
+        has_bank = bool(
+            (bank_acc and str(bank_acc).strip() and str(bank_acc) != "000000000000") or 
+            (ifsc and str(ifsc).strip() and str(ifsc) != "SBIN0000001") or
+            (upi and str(upi).strip() and not str(upi).endswith("@upi"))
+        ) or bool((bank_acc and str(bank_acc).strip()) and (ifsc and str(ifsc).strip()))
+        
+        # Apply kyc_filter if specified
+        if kyc_filter and kyc_filter != "all":
+            if kyc_filter == "aadhaar_given" and not has_aadhaar:
+                continue
+            elif kyc_filter == "aadhaar_and_bank" and not (has_aadhaar and has_bank):
+                continue
+            elif kyc_filter == "none" and (has_aadhaar or has_bank):
+                continue
+            elif kyc_filter == "all_approved" and not (v.status == "Approved" and v.aadhaar_verified and v.bank_verified):
+                continue
+
         results.append({
             "id": str(v.id),
             "artisan_id": str(v.artisan_id),
@@ -1024,6 +1049,11 @@ def get_verifications(
             "district": artisan.district if artisan else None,
             "craft_type": profile.craft_type if profile else None,
             "aadhaar_number": profile.aadhaar_number if profile else None,
+            "bank_account": profile.bank_account if profile else None,
+            "ifsc_code": profile.ifsc_code if profile else None,
+            "upi_id": profile.upi_id if profile else None,
+            "has_aadhaar": has_aadhaar,
+            "has_bank": has_bank,
             "cluster_name": profile.cluster_name if profile else None,
             "status": v.status,
             "rejection_reason": v.rejection_reason,
