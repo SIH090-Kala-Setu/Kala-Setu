@@ -38,8 +38,7 @@ def send_otp_sms(phone: str, otp: str):
 
     # DLT spam filters in India block standard OTP templates from regular SIM cards.
     # We use a casual message style so the carrier doesn't block it.
-    text = f"Hello, user! 
-    Your KalaSetu OTP is {otp}"
+    text = f"Hello, user! Your KalaSetu OTP is {otp}"
     
     # Ensure phone has +91 prefix
     formatted_phone = phone
