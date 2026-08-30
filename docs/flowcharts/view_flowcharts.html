@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KalaSetu (Artisan AI) — System Architecture & Flowchart</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --border: #1e293b;
+      --accent: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+    p.subtitle {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+    }
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.2s ease;
+    }
+    .chart-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .card-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .img-container {
+      position: relative;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+    }
+    .img-container img {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: transform 0.3s ease;
+      cursor: zoom-in;
+    }
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .btn {
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #334155;
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: var(--accent);
+      color: #0b0f19;
+      border-color: var(--accent);
+    }
+    .btn-primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+    }
+    .key-points {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .point {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .point strong {
+      color: var(--accent);
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="badge">Ministry of Social Justice and Empowerment (MoSJE) | SIH26090</div>
+    <h1>KalaSetu (Artisan AI) — Architecture & Flowcharts</h1>
+    <p class="subtitle">Autonomous AI-Driven Market Linkage, Multilingual Voice Cataloging, and Governance Platform</p>
+  </div>
+
+  <div class="container">
+    <!-- Chart 1 -->
+    <div class="chart-card">
+      <div class="card-header">
+        <h2 class="card-title">1. High-Level System Architecture & AI Pipeline Flowchart</h2>
+        <div class="btn-group">
+          <a class="btn btn-primary" href="system_architecture_flowchart.png" download>Download PNG ⬇</a>
+          <a class="btn" href="system_architecture_flowchart.png" target="_blank">Open Full PNG ↗</a>
+        </div>
+      </div>
+      <div class="img-container">
+        <img src="system_architecture_flowchart.png" alt="System Architecture Flowchart" onclick="window.open(this.src, '_blank')">
+      </div>
+      <div class="key-points">
+        <div class="point">
+          <strong>4 Role-Based Portals</strong>
+          Dedicated experiences for Artisans (Visual), Aggregators (Cohorts), B2B Buyers (Wholesale), and MoSJE Admins (Governance).
+        </div>
+        <div class="point">
+          <strong>Edge AI & Vision Processing</strong>
+          Lightweight ONNX u2netp (4.57MB) + OpenCV LAB vibrance lighting running in under 80MB RAM for 800x800 e-commerce imagery.
+        </div>
+        <div class="point">
+          <strong>Multilingual & Pricing AI</strong>
+          Google Gemini 1.5 Flash bilingual translation (EN+HI) & Dynamic Fair Wage formula (Labor Hours × ₹150 × Craft Multipliers).
+        </div>
+        <div class="point">
+          <strong>MoSJE 7 Governance Pillars</strong>
+          Aadhaar KYC verifications, cluster registries, exhibition stall management, scheme broadcasts, and tamper-evident audit logs.
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 2 -->
+    <div class="chart-card">
+      <div class="card-header">
+        <h2 class="card-title">2. Artisan-to-Market End-to-End Workflow Flowchart</h2>
+        <div class="btn-group">
+          <a class="btn btn-primary" href="artisan_lifecycle_flowchart.png" download>Download PNG ⬇</a>
+          <a class="btn" href="artisan_lifecycle_flowchart.png" target="_blank">Open Full PNG ↗</a>
+        </div>
+      </div>
+      <div class="img-container">
+        <img src="artisan_lifecycle_flowchart.png" alt="Artisan to Market Workflow" onclick="window.open(this.src, '_blank')">
+      </div>
+      <div class="key-points">
+        <div class="point">
+          <strong>1. Voice-Guided Onboarding</strong>
+          7-step icon wizard capturing Aadhaar KYC, craft specialization, and Bank/UPI details for direct DBT payouts.
+        </div>
+        <div class="point">
+          <strong>2. AI Studio Studio Photo</strong>
+          Rural mobile camera upload converted into studio-quality white canvas listing photos.
+        </div>
+        <div class="point">
+          <strong>3. Multilingual Speech-to-Catalog</strong>
+          Artisan speaks in native tongue (Hindi, Bengali, Tamil, etc.) → Transcribed & translated into SEO titles and stories.
+        </div>
+        <div class="point">
+          <strong>4. Fair Wage Pricing & Settlement</strong>
+          Automated retail and wholesale pricing calculation with 1-click B2B buyer quoting and Shilp Samagam exhibition QR codes.
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

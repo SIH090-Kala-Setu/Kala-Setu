@@ -15,6 +15,11 @@ from google.genai import types
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
 class ProductCatalog(BaseModel):
     detected_language: str = Field(description="The regional language detected in the input audio or text.")
     raw_transcription: str = Field(description="The verbatim transcription of what the artisan said.")
@@ -48,12 +53,11 @@ class Cataloger:
 
         # 2. Secondary Engine: Groq AI Agent
         self.groq_api_key = os.getenv("GROQ_API_KEY")
-        if self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("gsk_your_"):
+        if Groq and self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("gsk_your_"):
             try:
-                from groq import Groq
                 self.groq_client = Groq(api_key=self.groq_api_key)
-                self.groq_llm_model = "llama-3.3-70b-versatile"
-                self.groq_whisper_model = "whisper-large-v3"
+                self.groq_llm_model = "qwen/qwen3.8-27b"
+                self.groq_whisper_model = "whisper-large-v3-turbo"
             except Exception as e:
                 print(f"[Cataloger] Failed to initialize Groq client: {e}")
                 self.groq_client = None
@@ -65,8 +69,8 @@ class Cataloger:
         Transcribes the regional audio voice note, translates, and generates a structured product catalog
         in both English and Hindi with multi-tier failover:
         Tier 1: Google Gemini Flash Multimodal
-        Tier 2: Groq Whisper-large-v3 (Transcription) + Groq Llama-3.3-70b (Bilingual Catalog)
-        Tier 3: Local Intelligent Synthesizer
+        Tier 2: Groq Whisper (Transcription) + Groq LPU (Bilingual Catalog)
+        Tier 3: Local Smart Heuristic
         """
         raw_mime = mime_type.split(';')[0].strip().lower() if mime_type else "audio/mp4"
         mime_map = {
@@ -122,9 +126,9 @@ class Cataloger:
                 return ProductCatalog(**data)
                 
             except Exception as e:
-                print(f"[Cataloger] Gemini audio processing failed: {e}. Falling back to Groq agent...")
+                print(f"[Cataloger] Gemini audio processing error: {e}. Checking backup providers...")
 
-        # --- TIER 2: Try Groq Agent (Whisper + Llama 3.3) ---
+        # --- TIER 2: Try Groq Agent (Whisper + Groq LPU) ---
         if self.groq_client:
             try:
                 ext_map = {
@@ -148,10 +152,10 @@ class Cataloger:
                 detected_lang = getattr(transcription_res, "language", "Hindi")
                 
                 if transcribed_text.strip():
-                    return self._generate_catalog_with_groq(transcribed_text, detected_lang)
+                    return self.generate_catalog_from_text(transcribed_text, regional_lang=detected_lang)
             except Exception as e:
-                print(f"[Cataloger] Groq audio transcription/generation failed: {e}. Falling back to smart heuristic...")
-
+                print(f"[Cataloger] Groq audio transcription fallback error: {e}")
+        
         # --- TIER 3: Local Smart Heuristic Fallback ---
         seed = transcript_hint or "Traditional handcrafted artisan piece with natural materials"
         return self._generate_smart_catalog(seed, regional_lang="Hindi / Regional")
@@ -160,102 +164,65 @@ class Cataloger:
         """
         Takes raw text input in a regional language and translates/enriches it into a catalog with multi-tier failover.
         Tier 1: Google Gemini Flash
-        Tier 2: Groq Llama-3.3-70b-versatile
+        Tier 2: Groq LPU Cloud
         Tier 3: Local Smart Heuristic
         """
+        prompt = f"""
+        You are an expert Virtual Business Manager for marginalized artisans.
+        An artisan describes their product in {regional_lang} as follows:
+        "{description_text}"
+        
+        Please create a structured product catalog matching this schema:
+        - detected_language: {regional_lang}
+        - raw_transcription: "{description_text}"
+        - title_en: Professional catchy e-commerce title in English
+        - description_en: SEO-friendly product description in English
+        - title_hi: Professional catchy e-commerce title in Hindi
+        - description_hi: SEO-friendly product description in Hindi
+        - materials: List of raw materials (array of strings)
+        - tags: 5-8 SEO tags (array of strings)
+        - category: Best fitting category (Textiles, Handicrafts, Pottery, Jewelry, Paintings & Art, Woodwork)
+        
+        Respond strictly in JSON format matching the schema without markdown tags.
+        """
+
         # --- TIER 1: Try Gemini Text ---
         if self.gemini_client:
             try:
-                prompt = f"""
-                You are an expert Virtual Business Manager for marginalized artisans.
-                An artisan describes their product in {regional_lang} as follows:
-                "{description_text}"
-                
-                Please create a structured product catalog matching this schema:
-                - detected_language: {regional_lang}
-                - raw_transcription: "{description_text}"
-                - title_en: Professional catchy e-commerce title in English
-                - description_en: SEO-friendly product description in English
-                - title_hi: Professional catchy e-commerce title in Hindi
-                - description_hi: SEO-friendly product description in Hindi
-                - materials: List of raw materials
-                - tags: 5-8 SEO tags
-                - category: Best fitting category (Textiles, Handicrafts, Pottery, Jewelry, Paintings & Art, Woodwork)
-                
-                Respond strictly in JSON format matching the schema:
-                {{
-                   "detected_language": "{regional_lang}",
-                   "raw_transcription": "{description_text}",
-                   "title_en": "...",
-                   "description_en": "...",
-                   "title_hi": "...",
-                   "description_hi": "...",
-                   "materials": ["..."],
-                   "tags": ["..."],
-                   "category": "..."
-                }}
-                """
-                
                 response = self.gemini_client.models.generate_content(
                     model=self.gemini_model,
                     contents=prompt,
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
-                
                 data = json.loads(response.text)
                 return ProductCatalog(**data)
             except Exception as e:
-                print(f"[Cataloger] Gemini text processing failed: {e}. Falling back to Groq agent...")
+                print(f"[Cataloger] Gemini text processing error ({e}). Trying Groq backup...")
 
-        # --- TIER 2: Try Groq Agent ---
+        # --- TIER 2: Try Groq Backup ---
         if self.groq_client:
             try:
-                return self._generate_catalog_with_groq(description_text, regional_lang)
-            except Exception as e:
-                print(f"[Cataloger] Groq text processing failed: {e}. Falling back to smart heuristic...")
+                completion = self.groq_client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a professional e-commerce product cataloger for Indian artisans. Always respond strictly in valid JSON format with keys: detected_language, raw_transcription, title_en, description_en, title_hi, description_hi, materials, tags, category."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    model=self.groq_llm_model,
+                    response_format={"type": "json_object"},
+                    temperature=0.2
+                )
+                data = json.loads(completion.choices[0].message.content)
+                data["detected_language"] = data.get("detected_language") or regional_lang
+                data["raw_transcription"] = data.get("raw_transcription") or description_text
+                return ProductCatalog(**data)
+            except Exception as groq_err:
+                print(f"[Cataloger] Groq text processing error: {groq_err}")
 
-        # --- TIER 3: Local Smart Heuristic ---
+        # --- TIER 3: Local Smart Heuristics ---
         return self._generate_smart_catalog(description_text, regional_lang=regional_lang)
-
-    def _generate_catalog_with_groq(self, description_text: str, regional_lang: str = "Hindi") -> ProductCatalog:
-        """
-        Synthesizes structured bilingual catalog using Groq Llama 3.3 70B JSON mode.
-        """
-        system_prompt = (
-            "You are an expert Virtual Business Manager and e-commerce copywriter for rural Indian artisans. "
-            "Always respond strictly with valid JSON conforming to the requested schema with no extra prose."
-        )
-        user_prompt = f"""
-        An artisan describes their handcrafted product in {regional_lang} as follows:
-        "{description_text}"
-
-        Generate a high-converting, professional e-commerce product catalog in JSON format:
-        {{
-            "detected_language": "{regional_lang}",
-            "raw_transcription": "{description_text}",
-            "title_en": "Catchy professional title in English",
-            "description_en": "Rich SEO product story in English highlighting artisan heritage and materials",
-            "title_hi": "Catchy professional title in Hindi",
-            "description_hi": "Rich SEO product story in Hindi highlighting artisan heritage",
-            "materials": ["Material 1", "Material 2"],
-            "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-            "category": "Textiles & Handloom"
-        }}
-        """
-
-        chat_completion = self.groq_client.chat.completions.create(
-            model=self.groq_llm_model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-        )
-
-        raw_json = chat_completion.choices[0].message.content
-        data = json.loads(raw_json)
-        return ProductCatalog(**data)
 
     def _generate_smart_catalog(self, user_text: str, regional_lang: str = "Hindi") -> ProductCatalog:
         """
@@ -264,36 +231,35 @@ class Cataloger:
         """
         text_lower = (user_text or "").lower()
         
-        # Keyword categorization rules
-        if any(w in text_lower for w in ["saree", "silk", "cotton", "shawl", "dupatta", "weave", "handloom", "साड़ी", "रेशम", "सूट", "शॉल", "बुनाई", "धागा"]):
-            category = "Textiles & Handloom"
-            materials = ["Pure Mulberry Silk", "Natural Cotton", "Zari Metallic Thread"]
-            title_en = "Handcrafted Artisanal Silk & Handloom Textile"
-            title_hi = "पारंपरिक हस्तनिर्मित रेशम हथकरघा वस्त्र"
-            desc_en = f"Authentic handloom textile woven with traditional heritage craftsmanship. Handcrafted with care using natural fibers: '{user_text}'."
-            desc_hi = f"पारंपरिक बुनाई तकनीक से तैयार किया गया शुद्ध और प्रामाणिक हथकरघा उत्पाद। कारीगर द्वारा विवरण: '{user_text}'।"
-            tags = ["handloom", "silk saree", "traditional weave", "artisan textile", "sustainable fashion", "indian craft"]
+        if any(w in text_lower for w in ["saree", "silk", "cotton", "shawl", "dupatta", "weave", "handloom", "साड़ी", "रेशम", "सूट", "शॉल", "बुनाई", "धागा", "कुर्ता"]):
+            category = "Textiles"
+            materials = ["Natural Cotton", "Pure Mulberry Silk", "Traditional Thread"]
+            title_en = "Handcrafted Artisanal Silk & Cotton Textile"
+            title_hi = "पारंपरिक हस्तनिर्मित सूती व रेशमी हथकरघा वस्त्र"
+            desc_en = f"Authentic handloom textile woven with traditional heritage craftsmanship. Handcrafted with care: '{user_text}'."
+            desc_hi = f"पारंपरिक बुनाई तकनीक से तैयार किया गया शुद्ध और प्रामाणिक हथकरघा उत्पाद। विवरण: '{user_text}'।"
+            tags = ["handloom", "traditional weave", "artisan textile", "sustainable fashion", "indian craft", "handmade kurta"]
 
         elif any(w in text_lower for w in ["pottery", "clay", "terracotta", "vase", "ceramic", "मिट्टी", "बर्तन", "घड़ा", "फूलदान", "टेराकोटा"]):
-            category = "Pottery & Clay Art"
+            category = "Pottery"
             materials = ["Natural Terracotta Clay", "Organic Mineral Glaze"]
             title_en = "Handmade Natural Terracotta Clay Craft"
             title_hi = "पारंपरिक हस्तनिर्मित टेराकोटा मिट्टी की कलाकृति"
-            desc_en = f"Hand-molded and kiln-fired by generational master potters using 100% natural clay. Artisan description: '{user_text}'."
-            desc_hi = f"प्राकृतिक मिट्टी से हाथ से गढ़ा गया पर्यावरण-अनुकूल उत्पाद। कारीगर का विवरण: '{user_text}'।"
+            desc_en = f"Hand-molded and kiln-fired by generational master potters using natural clay. Artisan description: '{user_text}'."
+            desc_hi = f"प्राकृतिक मिट्टी से हाथ से गढ़ा गया पर्यावरण-अनुकूल उत्पाद। विवरण: '{user_text}'।"
             tags = ["terracotta", "pottery", "handmade clay", "eco friendly", "indian pottery", "home decor"]
 
         elif any(w in text_lower for w in ["wood", "wooden", "carving", "teak", "sheesham", "लकड़ी", "नक्काशी", "काष्ठ"]):
-            category = "Woodwork & Carvings"
+            category = "Woodwork"
             materials = ["Seasoned Teakwood", "Natural Lacquer Polish"]
-            title_en = "Hand-Carved Heritage Teak Wood Decor"
+            title_en = "Hand-Carved Heritage Wood Decor"
             title_hi = "हस्तनिर्मित काष्ठ नक्काशी कलाकृति"
-            desc_en = f"Intricately carved from solid seasoned wood with traditional motifs and hand-polished finish: '{user_text}'."
+            desc_en = f"Intricately carved from solid seasoned wood with traditional motifs: '{user_text}'."
             desc_hi = f"शुद्ध और मजबूत लकड़ी पर बारीक हस्त नक्काशी से तैयार की गई सुंदर कलाकृति। विवरण: '{user_text}'।"
             tags = ["wood carving", "teakwood", "handmade decor", "wooden craft", "heritage artifact"]
 
         elif any(w in text_lower for w in ["jewelry", "jewel", "necklace", "bangle", "silver", "brass", "माला", "आभूषण", "कंगन", "चांदी", "झुमके"]):
-            category = "Tribal & Traditional Jewelry"
+            category = "Jewelry"
             materials = ["Brass / Silver Alloy", "Beads", "Natural Thread"]
             title_en = "Handcrafted Ethnic Traditional Jewelry"
             title_hi = "हस्तनिर्मित पारंपरिक आभूषण"
@@ -302,16 +268,16 @@ class Cataloger:
             tags = ["ethnic jewelry", "handcrafted jewelry", "tribal jewelry", "brass craft", "festive wear"]
 
         elif any(w in text_lower for w in ["painting", "madhubani", "warli", "pattachitra", "art", "चित्र", "पेंटिंग", "मधुबनी", "कला"]):
-            category = "Folk Paintings & Art"
+            category = "Paintings & Art"
             materials = ["Handmade Canvas Paper", "Natural Organic Pigments"]
             title_en = "Traditional Indian Folk Art Painting"
             title_hi = "पारंपरिक भारतीय लोक चित्रकला (पेंटिंग)"
-            desc_en = f"Authentic folk painting rendered with natural mineral and vegetable dyes on handmade canvas: '{user_text}'."
+            desc_en = f"Authentic folk painting rendered with natural mineral and vegetable dyes: '{user_text}'."
             desc_hi = f"प्राकृतिक रंगों और पारंपरिक शैली में बनाई गई मनमोहक लोक चित्रकला। विवरण: '{user_text}'।"
             tags = ["folk painting", "madhubani", "traditional art", "canvas painting", "wall decor", "indian art"]
 
         else:
-            category = "Handicrafts & Decor"
+            category = "Handicrafts"
             materials = ["Natural Eco-friendly Materials", "Organic Fibers"]
             title_en = f"Handcrafted {user_text[:35].strip().title() if user_text else 'Artisan Creation'}"
             title_hi = f"हस्तनिर्मित पारंपरिक उत्पाद ({user_text[:30].strip() if user_text else 'कलाकृति'})"

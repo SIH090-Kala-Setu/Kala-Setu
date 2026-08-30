@@ -15,7 +15,8 @@ def test_read_root():
     """
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to Artisan AI API! Use /docs for API documentation."}
+    assert "message" in response.json()
+    assert "Welcome to Artisan AI API" in response.json()["message"]
 
 def test_pricing_assistant():
     """

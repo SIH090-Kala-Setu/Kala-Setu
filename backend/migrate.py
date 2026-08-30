@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 KalaSetu — Database Migration Script
 Run from project root: backend\venv\Scripts\python.exe backend/migrate.py
 

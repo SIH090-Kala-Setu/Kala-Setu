@@ -1,9 +1,23 @@
 import os
 import json
+from dotenv import load_dotenv
+
+# Ensure .env is loaded
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+if os.path.exists(env_path):
+    load_dotenv(dotenv_path=env_path)
+else:
+    load_dotenv()
+
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 
 class PriceBreakdown(BaseModel):
     base_material_cost: float = Field(description="Estimated cost of raw materials.")
@@ -16,26 +30,25 @@ class PriceBreakdown(BaseModel):
 class PricingAssistant:
     def __init__(self):
         # 1. Primary Engine: Google Gemini
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if self.gemini_api_key and not self.gemini_api_key.startswith("your_"):
             try:
                 self.gemini_client = genai.Client(api_key=self.gemini_api_key)
                 self.gemini_model = "gemini-2.5-flash-lite"
             except Exception as e:
-                print(f"[PricingAssistant] Failed to initialize Gemini: {e}")
+                print(f"[PricingAssistant] Failed to initialize Gemini client: {e}")
                 self.gemini_client = None
         else:
             self.gemini_client = None
 
         # 2. Secondary Engine: Groq AI Agent
         self.groq_api_key = os.getenv("GROQ_API_KEY")
-        if self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("gsk_your_"):
+        if Groq and self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("gsk_your_"):
             try:
-                from groq import Groq
                 self.groq_client = Groq(api_key=self.groq_api_key)
-                self.groq_model = "llama-3.3-70b-versatile"
+                self.groq_model = "qwen/qwen3.8-27b"
             except Exception as e:
-                print(f"[PricingAssistant] Failed to initialize Groq: {e}")
+                print(f"[PricingAssistant] Failed to initialize Groq client: {e}")
                 self.groq_client = None
         else:
             self.groq_client = None
@@ -50,6 +63,7 @@ class PricingAssistant:
         "Pottery": 1.3,
         "Jewelry": 1.8,
         "Paintings & Art": 2.0,
+        "Woodwork": 1.5,
         "Default": 1.4
     }
 
@@ -61,10 +75,9 @@ class PricingAssistant:
         product_description: str
     ) -> PriceBreakdown:
         """
-        Uses mathematical estimates blended with LLM market-trend insight to calculate
-        an optimal competitive selling price.
+        Calculates optimal competitive selling price using Gemini -> Groq -> Mathematical heuristics.
         Tier 1: Google Gemini Flash
-        Tier 2: Groq Llama-3.3-70b-versatile
+        Tier 2: Groq LPU Cloud
         Tier 3: Local Fair Wage Cost-Plus Heuristic
         """
         # 1. Base Cost Calculation
@@ -86,8 +99,8 @@ class PricingAssistant:
         
         The baseline calculated retail price is Rs. {calculated_retail:.2f} and bulk B2B price is Rs. {calculated_b2b:.2f}.
         
-        Suggest:
-        1. A realistic competitor price range on platforms like Etsy, Amazon Karigar, and ONDC.
+        Use e-commerce trends (e.g. Etsy, Amazon Karigar, ONDC, Craftsvilla) to suggest:
+        1. A realistic competitor price range.
         2. An optimized retail and B2B price structure (adjusting baseline if appropriate).
         3. Short strategic tips on how to market it.
         
@@ -113,31 +126,33 @@ class PricingAssistant:
                 data = json.loads(response.text)
                 return PriceBreakdown(**data)
             except Exception as e:
-                print(f"[PricingAssistant] Gemini pricing evaluation failed: {e}. Trying Groq agent...")
+                print(f"[PricingAssistant] Gemini pricing error ({e}). Trying Groq backup...")
 
-        # --- TIER 2: Try Groq Agent ---
+        # --- TIER 2: Try Groq Cloud ---
         if self.groq_client:
             try:
-                chat_completion = self.groq_client.chat.completions.create(
-                    model=self.groq_model,
+                completion = self.groq_client.chat.completions.create(
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are an expert e-commerce pricing strategist for handmade Indian artisan goods. Respond strictly with JSON."
+                            "content": "You are a specialized pricing consultant for Indian handicrafts. Always respond strictly in valid JSON format."
                         },
                         {"role": "user", "content": prompt}
                     ],
+                    model=self.groq_model,
                     response_format={"type": "json_object"},
-                    temperature=0.2,
+                    temperature=0.2
                 )
-                raw_json = chat_completion.choices[0].message.content
-                data = json.loads(raw_json)
+                data = json.loads(completion.choices[0].message.content)
+                data["base_material_cost"] = float(data.get("base_material_cost", material_cost))
+                data["labor_cost"] = float(data.get("labor_cost", labor_cost))
+                data["suggested_retail_price"] = float(data.get("suggested_retail_price", calculated_retail))
+                data["suggested_b2b_price"] = float(data.get("suggested_b2b_price", calculated_b2b))
                 return PriceBreakdown(**data)
-            except Exception as e:
-                print(f"[PricingAssistant] Groq pricing evaluation failed: {e}. Falling back to local heuristic...")
+            except Exception as groq_err:
+                print(f"[PricingAssistant] Groq pricing error: {groq_err}")
 
         # --- TIER 3: Local Heuristic Fallback ---
-        # Estimate competitor range locally
         comp_min = int(calculated_retail * 0.9)
         comp_max = int(calculated_retail * 1.4)
         
@@ -150,7 +165,7 @@ class PricingAssistant:
         return PriceBreakdown(
             base_material_cost=material_cost,
             labor_cost=labor_cost,
-            suggested_retail_price=round(calculated_retail, -1),  # Round to nearest 10
+            suggested_retail_price=round(calculated_retail, -1),
             suggested_b2b_price=round(calculated_b2b, -1),
             competitor_range=f"Rs. {comp_min} - Rs. {comp_max}",
             pricing_strategy_notes=strategy_notes
