@@ -306,15 +306,19 @@ Language   →   Name+Phone  →  Role Select →  Craft Type  →  Region      
 
 ---
 
-### Module 8 — Notification & Support
+### Module 8 — Notification & Support (FCM v1 Push Engine)
 
-**Multilingual alert and communication system:**
+**Real-time Multilingual Alert & Push Notification System:**
 
-- (i) **Order inquiry alerts** — buyer sends inquiry → artisan gets instant notification with direct reply box
-- (ii) **Price update alerts** for listed products
-- (iii) **Government scheme broadcasts** — admin & aggregators target by state or craft type
-- (iv) **Exhibition opportunity alerts** — upcoming fair registrations & approval notifications
-- (v) **In-app notifications center** with type filters (All / Unread / Inquiry / Scheme), unread badges, and 1-click mark all as read
+- (i) **Firebase Cloud Messaging (FCM HTTP v1)** — powered by `firebase-admin` for instant push notifications to mobile devices with background system tray & foreground banner handling
+- (ii) **Artisan KYC & Verification Alerts** — instant alerts when Aadhaar identity, bank settlement accounts, or overall artisan status is approved or requires re-submission
+- (iii) **Inventory & Out of Stock Alerts** — automatic push notifications when a product reaches `0 units` (or `Sold Out`) to prompt restocking
+- (iv) **Government Scheme Broadcasts & Relays** — Admin and Aggregators broadcast central/state welfare schemes directly to targeted craft clusters
+- (v) **Expiring Scheme Scanner (`POST /admin/schemes/notify-expiring`)** — automated scan alerting artisans of schemes closing within 14 days
+- (vi) **Exhibition Announcements & Stall Approvals** — notifications for new national fairs (Shilp Samagam, Surajkund Mela, Dilli Haat) and live stall review decisions
+- (vii) **Buyer Inquiry Lifecycles** — instant alerts when buyers inquire, and when artisans respond with quotation decisions (`Accept`, `Deny`, or `Reply`)
+- (viii) **Aggregator Cluster Workflows** — alerts on cluster assignment approvals, new cluster registrations, and field-assisted artisan onboarding
+- (ix) **In-App Notifications Center** with type filters, unread badges, and 1-click mark all as read (`GET /notifications`, `PUT /notifications/mark-all-read`)
 
 ---
 
@@ -657,6 +661,7 @@ erDiagram
 | `POST` | `/auth/register` | Public | Register Artisan, Buyer, Aggregator, or Admin with role, language, and craft details. |
 | `POST` | `/auth/login` | Public | Authenticate and receive a JWT Bearer token. |
 | `GET` | `/auth/me` | Authenticated | Retrieve current user profile and verification status. |
+| `POST` | `/auth/fcm-token` | Authenticated | Register or update FCM device push token for the current user. |
 
 ---
 
@@ -681,7 +686,7 @@ erDiagram
 | `PUT` | `/products/{id}` | Artisan | Update product title, description, price, or stock. |
 | `DELETE` | `/products/{id}` | Artisan | Archive (soft-delete) a product listing. |
 | `PUT` | `/products/{id}/status` | Artisan | Toggle status: `Active · Draft · Sold Out · Archived · Pending Review`. |
-| `PUT` | `/products/{id}/stock` | Artisan | Update stock count. Auto-sets `Sold Out` when stock reaches 0. |
+| `PUT` | `/products/{id}/stock` | Artisan | Update stock count. Auto-sets `Sold Out` and triggers Out of Stock push alert when 0. |
 | `PUT` | `/products/{id}/price` | Artisan | Update base price and suggested retail price directly. |
 | `GET` | `/products/{id}/qr` | Public | Generate and return a scannable QR code PNG for catalog sharing at exhibitions. |
 
@@ -705,12 +710,13 @@ erDiagram
 | :--- | :--- | :--- | :--- |
 | `GET` | `/aggregator/dashboard` | Aggregator | Summary across all managed clusters: artisan count, catalog status, artisans needing support. |
 | `GET` | `/aggregator/artisans` | Aggregator | Full list of all artisans across aggregator's clusters with verification and listing status. |
-| `POST` | `/aggregator/artisans/onboard` | Aggregator | Assisted registration of low-literacy artisans directly into the cluster. |
-| `POST` | `/aggregator/schemes/relay` | Aggregator | Broadcast scheme alerts & exhibition opportunities to all cluster artisans. |
+| `POST` | `/aggregator/artisans/onboard` | Aggregator | Assisted registration of low-literacy artisans directly into the cluster with push notification. |
+| `POST` | `/aggregator/schemes/relay` | Aggregator | Broadcast scheme alerts & exhibition opportunities to all cluster artisans via push & DB. |
 | `POST` | `/aggregator/reports/submit` | Aggregator | Formally submit cluster progress report to MoSJE Admin. |
 | `GET` | `/clusters` | Aggregator / Admin | List all craft clusters. |
-| `POST` | `/clusters` | Admin | Create a new cluster by state, district, and specialization. |
+| `POST` | `/clusters` | Admin / Aggregator | Create a new cluster and assign aggregator. |
 | `GET` | `/clusters/my-clusters` | Aggregator | List clusters managed by the current aggregator. |
+| `POST` | `/aggregator/join-cluster` | Aggregator | Adopt and claim an unassigned cluster. |
 | `POST` | `/clusters/{id}/artisans` | Admin / Aggregator | Add an artisan to a cluster. |
 | `GET` | `/clusters/{id}/artisans` | Admin / Aggregator | List all artisans within a cluster. |
 
@@ -721,18 +727,18 @@ erDiagram
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/buyer/dashboard` | Buyer | Inquiry history, status summary (Pending/Responded/Completed), suggested artisans. |
-| `POST` | `/inquiries` | Buyer | Submit bulk order quotation inquiry to an artisan. |
+| `POST` | `/inquiries` | Buyer | Submit bulk order quotation inquiry to an artisan (dispatches instant push to artisan). |
 | `GET` | `/inquiries` | Authenticated | List sent or received inquiries. |
-| `POST` | `/inquiries/{id}/respond` | Artisan | Respond to a buyer inquiry with custom quotation and lead times. |
+| `POST` | `/inquiries/{id}/respond` | Artisan | Respond with decision (`Accepted`, `Denied`, `Responded`) and custom message (pushes to buyer). |
 
 ---
 
-### 🔔 Notifications
+### 🔔 Notifications & Push Alerts
 
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/notifications` | Authenticated | Fetch all user-scoped notifications (inquiry alerts, scheme alerts, verifications). |
-| `POST` | `/notifications` | Admin | Send a notification to a specific user. |
+| `GET` | `/notifications` | Authenticated | Fetch all user-scoped notifications (inquiry alerts, scheme alerts, verifications, system). |
+| `POST` | `/notifications` | Admin | Broadcast or send a notification to a specific user. |
 | `PUT` | `/notifications/{id}/read` | Authenticated | Mark a single notification as read. |
 | `PUT` | `/notifications/mark-all-read` | Authenticated | Mark all notifications as read for the current user. |
 
@@ -743,27 +749,28 @@ erDiagram
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/admin/users` | Admin | List all registered users with role filter. |
-| `POST` | `/admin/verify-artisan/{id}` | Admin | Quick-verify artisan (legacy direct verify). |
+| `POST` | `/admin/verify-artisan/{id}` | Admin | Quick-verify artisan with instant push notification. |
 | `GET` | `/admin/verifications` | Admin | Artisan KYC queue with `status_filter` (Pending/Approved/Rejected). |
-| `POST` | `/admin/verifications/{id}/review` | Admin | Approve or reject artisan KYC with Aadhaar/bank flags and rejection reason. |
+| `POST` | `/admin/verifications/{id}/review` | Admin | Approve or reject artisan KYC with Aadhaar/bank flags and push breakdown. |
 | `GET` | `/admin/analytics` | Admin | Platform-wide metrics: verification rates, engagement, prices, state breakdown, cluster rankings. |
 | `GET` | `/admin/audit-logs` | Admin | Tamper-evident audit trail of all administrative actions. |
 | `GET` | `/admin/products/flagged` | Admin | List products awaiting moderation (from unverified artisans). |
 | `POST` | `/admin/products/{id}/moderate` | Admin | Approve (`Active`) or archive (`Archived`) a product with audit log entry. |
-| `POST` | `/admin/schemes` | Admin | Publish a new government welfare scheme. |
+| `POST` | `/admin/schemes` | Admin | Publish a new government welfare scheme with automatic broadcast push. |
 | `GET` | `/admin/schemes` | Public / Admin | List all active government schemes. |
 | `PUT` | `/admin/schemes/{id}` | Admin | Update scheme details or toggle active status. |
 | `POST` | `/admin/schemes/{id}/alert` | Admin | Broadcast targeted alert filtered by state or craft type. |
+| `POST` | `/admin/schemes/notify-expiring` | Admin | Scan and push expiring scheme alerts (closing within 14 days) to artisans. |
 | `GET` | `/admin/schemes/{id}/alerts` | Admin | View broadcast history for a scheme. |
-| `POST` | `/admin/exhibitions` | Admin | Schedule a new fair (Shilp Samagam, Surajkund Mela, Dilli Haat). |
+| `POST` | `/admin/exhibitions` | Admin | Schedule a new fair and push broadcast to all artisans and aggregators. |
 | `GET` | `/admin/exhibitions` | Public / Admin | List all physical fairs & exhibitions. |
 | `PUT` | `/admin/exhibitions/{id}/status` | Admin | Update fair lifecycle status. |
 | `POST` | `/admin/exhibitions/{id}/register` | Artisan | Register artisan digitally for an exhibition stall. |
-| `POST` | `/admin/exhibitions/registrations/{id}/status` | Admin | Approve or reject artisan exhibition registration. |
+| `POST` | `/admin/exhibitions/registrations/{id}/status` | Admin | Approve or reject artisan exhibition registration with stall push notification. |
 | `GET` | `/admin/exhibitions/{id}/registrations` | Admin | List all registrations for a fair. |
 | `GET` | `/admin/exhibitions/{id}/registrations/detailed` | Admin | Detailed artisan registration data for a fair. |
 | `GET` | `/admin/buyers` | Admin | Directory of all B2B buyers and their inquiry history. |
-| `POST` | `/admin/buyers/{id}/verify` | Admin | Grant or revoke verified buyer credentials. |
+| `POST` | `/admin/buyers/{id}/verify` | Admin | Grant or revoke verified buyer credentials with push alert. |
 | `GET` | `/admin/clusters/{id}/stats` | Admin | Cluster performance: member count, verified artisans, active products, inquiry volume. |
 
 ---
@@ -829,6 +836,7 @@ The **₹150/hr (₹1,200/day)** benchmark is derived from:
 | Pillow | ≥10.0.0 | Image processing, resizing, canvas operations |
 | opencv-python | ≥4.8.0 | Mask-aware unsharp enhancement, quality scoring |
 | google-genai | ≥1.0.0 | Google Gemini 1.5 Flash multimodal API |
+| firebase-admin | ≥6.0.0 | Firebase Cloud Messaging (FCM HTTP v1) push engine |
 | qrcode[pil] | Latest | QR code PNG generation for catalog sharing |
 | python-dotenv | ≥1.0.0 | Environment variable loading |
 | python-multipart | ≥0.0.6 | File upload support |
@@ -857,19 +865,22 @@ Create `backend/.env` (use `backend/.env.example` as template):
 
 ```env
 # PostgreSQL Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=kala_setu
+DATABASE_URL=postgresql://postgres:password@localhost:5432/kala_setu
 
 # JWT Authentication
 SECRET_KEY=your_secret_jwt_key_here
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# Optional: Google Gemini 1.5 Flash for voice transcription & catalog generation
+# Google Gemini 1.5 Flash for voice transcription & catalog generation
 GEMINI_API_KEY=your_gemini_api_key_here
+
+# Firebase Cloud Messaging Credentials
+# Option A (Local File): Place your downloaded service account JSON at backend/firebase-credentials.json
+GOOGLE_APPLICATION_CREDENTIALS=firebase-credentials.json
+
+# Option B (Production / Render): Raw JSON string
+# FIREBASE_CREDENTIALS_JSON={"type": "service_account", ...}
 ```
 
 ---
