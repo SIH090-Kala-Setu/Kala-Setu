@@ -5,7 +5,11 @@ from sqlalchemy.orm import sessionmaker
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        load_dotenv(dotenv_path=env_path)
+    else:
+        load_dotenv()
 except ImportError:
     pass
 
