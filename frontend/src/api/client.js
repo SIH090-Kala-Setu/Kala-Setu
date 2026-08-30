@@ -73,7 +73,7 @@ export async function apiClient(endpoint, { body, ...customConfig } = {}) {
 
 export async function pingBackend() {
   try {
-    const res = await fetch(`${API_BASE}/`);
+    const res = await fetch(`${getApiBase()}/`);
     if (res.ok) {
       const data = await res.json();
       return { online: true, ...data };

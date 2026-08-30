@@ -81,9 +81,19 @@ _scheduler.add_job(_scheme_expiry_job, "cron", hour=9, minute=0)
 _scheduler.start()
 
 # Enable CORS for frontend connectivity
+# Note: allow_credentials=True is incompatible with allow_origins=["*"].
+# Explicit origins are listed so credentialed requests (Authorization header) work correctly.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "http://10.0.2.2:5173",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",  # deployed Vercel previews
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -635,37 +645,101 @@ def get_products(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     search: Optional[str] = None,
+    limit: int = Query(default=40, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.Product)
+    from sqlalchemy import text
+
+    filters = ["1=1"]
+    params: dict = {"limit": limit, "offset": offset}
+
     if category and category.lower() not in ["all", ""]:
-        query = query.filter(models.Product.craft_category.ilike(f"%{category}%"))
+        filters.append("p.craft_category ILIKE :category")
+        params["category"] = f"%{category}%"
     if material and material.lower() not in ["all", ""]:
-        query = query.filter(models.Product.material.ilike(f"%{material}%"))
+        filters.append("p.material ILIKE :material")
+        params["material"] = f"%{material}%"
     if min_price is not None and min_price > 0:
-        query = query.filter(models.Product.base_price >= min_price)
+        filters.append("p.base_price >= :min_price")
+        params["min_price"] = min_price
     if max_price is not None and max_price > 0:
-        query = query.filter(models.Product.base_price <= max_price)
+        filters.append("p.base_price <= :max_price")
+        params["max_price"] = max_price
     if region and region.lower() not in ["all", ""]:
-        query = query.join(models.ArtisanProfile, models.Product.artisan_id == models.ArtisanProfile.id)\
-                     .join(models.User, models.ArtisanProfile.user_id == models.User.id)\
-                     .filter(
-                         (models.User.state.ilike(f"%{region}%")) |
-                         (models.User.district.ilike(f"%{region}%")) |
-                         (models.ArtisanProfile.cluster_name.ilike(f"%{region}%"))
-                     )
+        filters.append("""
+            EXISTS (
+                SELECT 1 FROM artisan_profile ap2
+                JOIN users u2 ON ap2.user_id = u2.id
+                WHERE ap2.id = p.artisan_id
+                AND (u2.state ILIKE :region OR u2.district ILIKE :region OR ap2.cluster_name ILIKE :region)
+            )
+        """)
+        params["region"] = f"%{region}%"
     if search:
-        search_term = f"%{search.strip()}%"
-        query = query.filter(
-            (models.Product.title_en.ilike(search_term)) | 
-            (models.Product.title_hi.ilike(search_term)) | 
-            (models.Product.description_en.ilike(search_term)) |
-            (models.Product.craft_category.ilike(search_term)) |
-            (models.Product.material.ilike(search_term))
+        filters.append("""
+            (p.title_en ILIKE :search OR p.title_hi ILIKE :search
+             OR p.description_en ILIKE :search OR p.craft_category ILIKE :search
+             OR p.material ILIKE :search)
+        """)
+        params["search"] = f"%{search.strip()}%"
+
+    where_clause = " AND ".join(filters)
+
+    sql = text(f"""
+        SELECT
+            p.id,
+            p.title_en,
+            p.title_hi,
+            p.description_en,
+            p.description_hi,
+            p.craft_category,
+            p.material,
+            p.base_price,
+            p.suggested_price,
+            p.stock_count,
+            p.status,
+            u.full_name  AS artisan_name,
+            ap.cluster_name AS artisan_coop,
+            p.artisan_id,
+            (
+                SELECT COALESCE(pi.enhanced_url, pi.original_url)
+                FROM prod_ct_images pi
+                WHERE pi.product_id = p.id
+                ORDER BY pi.is_primary DESC, pi.display_order ASC
+                LIMIT 1
+            ) AS image_url
+        FROM products p
+        LEFT JOIN artisan_profile ap ON ap.id = p.artisan_id
+        LEFT JOIN users u ON u.id = ap.user_id
+        WHERE {where_clause}
+        ORDER BY p.id DESC
+        LIMIT :limit OFFSET :offset
+    """)
+
+    rows = db.execute(sql, params).mappings().all()
+
+    return [
+        ProductResponse(
+            id=str(row["id"]),
+            title_en=row["title_en"] or "",
+            title_hi=row["title_hi"] or "",
+            description_en=row["description_en"],
+            description_hi=row["description_hi"],
+            category=row["craft_category"] or "Handicrafts",
+            materials=[m.strip() for m in (row["material"] or "").split(",") if m.strip()],
+            tags=[],
+            retail_price=float(row["base_price"] or 0),
+            b2b_price=float(row["suggested_price"]) if row["suggested_price"] else float((row["base_price"] or 0) * 0.85),
+            stock=row["stock_count"] if row["stock_count"] is not None else 10,
+            status=row["status"] or "Active",
+            image_url=row["image_url"],
+            artisan_name=row["artisan_name"] or "Independent Artisan",
+            artisan_coop=row["artisan_coop"],
+            artisan_id=str(row["artisan_id"]) if row["artisan_id"] else None,
         )
-            
-    products_list = query.order_by(models.Product.id.desc()).all()
-    return [map_product_to_response(p) for p in products_list]
+        for row in rows
+    ]
 
 @app.post("/products", response_model=ProductResponse)
 def create_product(

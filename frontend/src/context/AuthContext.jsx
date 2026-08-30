@@ -57,7 +57,8 @@ export function AuthProvider({ children }) {
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  }, [loadUser, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadUser]);
 
   const login = async (username, password) => {
     try {

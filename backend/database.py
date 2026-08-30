@@ -47,6 +47,10 @@ if is_supabase or "sslmode=require" in SQLALCHEMY_DATABASE_URL:
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=300,       # recycle connections every 5 min to avoid Supabase idle timeout
+    pool_timeout=30,
     connect_args=connect_args,
 )
 

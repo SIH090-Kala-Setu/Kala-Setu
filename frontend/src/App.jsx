@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
@@ -17,22 +17,22 @@ import BuyerDashboard from './components/buyer/BuyerDashboard';
 import OnboardingWizard from './components/onboarding/OnboardingWizard';
 
 export default function App() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const role = user?.role;
   const isAdmin = role === 'Admin';
   const isArtisan = role === 'Artisan';
   const isAggregator = role === 'Aggregator';
   const isBuyer = role === 'Buyer';
 
-  const getDefaultTab = () => {
+  const getDefaultTab = useCallback(() => {
     if (isAdmin) return 'admin';
     if (isArtisan) return 'artisan-dashboard';
     if (isAggregator) return 'aggregator-dashboard';
     if (isBuyer) return 'buyer-dashboard';
     return 'marketplace';
-  };
+  }, [isAdmin, isArtisan, isAggregator, isBuyer]);
 
-  const [activeTab, setActiveTab] = useState(getDefaultTab());
+  const [activeTab, setActiveTab] = useState(() => getDefaultTab());
   const [adminPanel, setAdminPanel] = useState('verifications');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -49,8 +49,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    setActiveTab(getDefaultTab());
-  }, [role]);
+    if (!loading) setActiveTab(getDefaultTab());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, loading]);
 
   const navigate = (tab) => {
     setSelectedProduct(null);
@@ -125,7 +126,7 @@ export default function App() {
             {isBuyer && activeTab === 'marketplace' && <Marketplace onSelectProduct={handleSelectProduct} />}
 
             {/* UNAUTHENTICATED */}
-            {!user && <Marketplace onSelectProduct={handleSelectProduct} />}
+            {!loading && !user && <Marketplace onSelectProduct={handleSelectProduct} />}
 
             {/* ADMIN ACCESS DENIED */}
             {activeTab === 'admin' && !isAdmin && (

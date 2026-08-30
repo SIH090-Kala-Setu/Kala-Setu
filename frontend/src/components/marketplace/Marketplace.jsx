@@ -5,13 +5,21 @@ import InquiryModal from './InquiryModal';
 import { useToast } from '../../context/ToastContext';
 import { Search, Filter, ShoppingBag, MapPin, Layers, IndianRupee, RotateCcw, SlidersHorizontal } from 'lucide-react';
 
+const PRICE_RANGES = [
+  { label: 'All Prices', min: null, max: null },
+  { label: 'Under ₹1,000', min: 0, max: 1000 },
+  { label: '₹1,000 - ₹5,000', min: 1000, max: 5000 },
+  { label: '₹5,000 - ₹15,000', min: 5000, max: 15000 },
+  { label: 'Above ₹15,000', min: 15000, max: null }
+];
+
 export default function Marketplace({ onSelectProduct }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedRegion, setSelectedRegion] = useState('All');
   const [selectedMaterial, setSelectedMaterial] = useState('All');
-  const [priceRange, setPriceRange] = useState('All');
+  const [priceRange, setPriceRange] = useState('All Prices');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedProductForInquiry, setSelectedProductForInquiry] = useState(null);
@@ -46,18 +54,12 @@ export default function Marketplace({ onSelectProduct }) {
     'Jute'
   ];
 
-  const priceRanges = [
-    { label: 'All Prices', min: null, max: null },
-    { label: 'Under ₹1,000', min: 0, max: 1000 },
-    { label: '₹1,000 - ₹5,000', min: 1000, max: 5000 },
-    { label: '₹5,000 - ₹15,000', min: 5000, max: 15000 },
-    { label: 'Above ₹15,000', min: 15000, max: null }
-  ];
+  const priceRanges = PRICE_RANGES;
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const activeRange = priceRanges.find(r => r.label === priceRange) || {};
+      const activeRange = PRICE_RANGES.find(r => r.label === priceRange) || {};
       const data = await getProducts({
         category: selectedCategory !== 'All' ? selectedCategory : null,
         region: selectedRegion !== 'All' ? selectedRegion : null,
@@ -72,7 +74,8 @@ export default function Marketplace({ onSelectProduct }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, selectedRegion, selectedMaterial, priceRange, searchTerm, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, selectedRegion, selectedMaterial, priceRange, searchTerm]);
 
   useEffect(() => {
     fetchProducts();
@@ -82,11 +85,11 @@ export default function Marketplace({ onSelectProduct }) {
     setSelectedCategory('All');
     setSelectedRegion('All');
     setSelectedMaterial('All');
-    setPriceRange('All');
+    setPriceRange('All Prices');
     setSearchTerm('');
   };
 
-  const hasActiveFilters = selectedCategory !== 'All' || selectedRegion !== 'All' || selectedMaterial !== 'All' || priceRange !== 'All' || searchTerm.trim() !== '';
+  const hasActiveFilters = selectedCategory !== 'All' || selectedRegion !== 'All' || selectedMaterial !== 'All' || priceRange !== 'All Prices' || searchTerm.trim() !== '';
 
   return (
     <div className="container" style={{ marginTop: '20px', marginBottom: '60px' }}>
@@ -243,7 +246,7 @@ export default function Marketplace({ onSelectProduct }) {
           {selectedMaterial !== 'All' && (
             <span className="badge badge-sm" style={{ background: 'rgba(255,255,255,0.08)' }}>Material: {selectedMaterial}</span>
           )}
-          {priceRange !== 'All' && (
+          {priceRange !== 'All Prices' && (
             <span className="badge badge-success badge-sm">Price: {priceRange}</span>
           )}
           {searchTerm && (

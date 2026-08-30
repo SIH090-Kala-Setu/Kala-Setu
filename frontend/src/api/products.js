@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 
-export async function getProducts({ category, search, region, material, min_price, max_price } = {}) {
+export async function getProducts({ category, search, region, material, min_price, max_price, limit = 40, offset = 0 } = {}) {
   let url = '/products';
   const params = new URLSearchParams();
   if (category && category !== 'All' && category !== 'all') params.append('category', category);
@@ -9,6 +9,8 @@ export async function getProducts({ category, search, region, material, min_pric
   if (material && material !== 'All' && material !== 'all') params.append('material', material);
   if (min_price) params.append('min_price', min_price);
   if (max_price) params.append('max_price', max_price);
+  params.append('limit', limit);
+  params.append('offset', offset);
 
   const qs = params.toString();
   if (qs) url += `?${qs}`;
