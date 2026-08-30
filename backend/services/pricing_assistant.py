@@ -15,12 +15,30 @@ class PriceBreakdown(BaseModel):
 
 class PricingAssistant:
     def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if self.api_key:
-            self.client = genai.Client(api_key=self.api_key)
-            self.model_name = "gemini-2.5-flash-lite"
+        # 1. Primary Engine: Google Gemini
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if self.gemini_api_key and not self.gemini_api_key.startswith("your_"):
+            try:
+                self.gemini_client = genai.Client(api_key=self.gemini_api_key)
+                self.gemini_model = "gemini-2.5-flash-lite"
+            except Exception as e:
+                print(f"[PricingAssistant] Failed to initialize Gemini: {e}")
+                self.gemini_client = None
         else:
-            self.model = None
+            self.gemini_client = None
+
+        # 2. Secondary Engine: Groq AI Agent
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        if self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("gsk_your_"):
+            try:
+                from groq import Groq
+                self.groq_client = Groq(api_key=self.groq_api_key)
+                self.groq_model = "llama-3.3-70b-versatile"
+            except Exception as e:
+                print(f"[PricingAssistant] Failed to initialize Groq: {e}")
+                self.groq_client = None
+        else:
+            self.groq_client = None
 
     # Base hourly rates for local skilled work (in INR)
     BASE_HOURLY_LABOR_RATE = 150.0  # Appx Rs. 1200 / day of skilled weaving/crafting
@@ -45,6 +63,9 @@ class PricingAssistant:
         """
         Uses mathematical estimates blended with LLM market-trend insight to calculate
         an optimal competitive selling price.
+        Tier 1: Google Gemini Flash
+        Tier 2: Groq Llama-3.3-70b-versatile
+        Tier 3: Local Fair Wage Cost-Plus Heuristic
         """
         # 1. Base Cost Calculation
         labor_cost = manufacturing_hours * self.BASE_HOURLY_LABOR_RATE
@@ -55,46 +76,67 @@ class PricingAssistant:
         calculated_retail = total_production_cost * markup
         calculated_b2b = total_production_cost * (markup * 0.85)  # 15% discount for bulk orders
 
-        # 2. Try LLM Enrichment for real-world competitor context
-        if self.api_key:
+        prompt = f"""
+        You are a retail pricing consultant specializing in Indian handicrafts, textiles, and rural products.
+        Calculate a competitive price structure for this artisan product:
+        - Category: {category}
+        - Raw Material Cost: Rs. {material_cost}
+        - Labor Hours: {manufacturing_hours} hours
+        - Product Description: {product_description}
+        
+        The baseline calculated retail price is Rs. {calculated_retail:.2f} and bulk B2B price is Rs. {calculated_b2b:.2f}.
+        
+        Suggest:
+        1. A realistic competitor price range on platforms like Etsy, Amazon Karigar, and ONDC.
+        2. An optimized retail and B2B price structure (adjusting baseline if appropriate).
+        3. Short strategic tips on how to market it.
+        
+        Respond strictly in this JSON format:
+        {{
+          "base_material_cost": {material_cost},
+          "labor_cost": {labor_cost},
+          "suggested_retail_price": {int(calculated_retail)},
+          "suggested_b2b_price": {int(calculated_b2b)},
+          "competitor_range": "Rs. {int(calculated_retail * 0.9)} - Rs. {int(calculated_retail * 1.4)}",
+          "pricing_strategy_notes": "strategy notes here..."
+        }}
+        """
+
+        # --- TIER 1: Try Gemini ---
+        if self.gemini_client:
             try:
-                prompt = f"""
-                You are a retail pricing consultant specializing in Indian handicrafts, textiles, and rural products.
-                Calculate a competitive price structure for this artisan product:
-                - Category: {category}
-                - Raw Material Cost: Rs. {material_cost}
-                - Labor Hours: {manufacturing_hours} hours
-                - Product Description: {product_description}
-                
-                The baseline calculated retail price is Rs. {calculated_retail:.2f} and bulk B2B price is Rs. {calculated_b2b:.2f}.
-                
-                Use internet search context of e-commerce trends (e.g. Etsy, Amazon Karigar, ONDC, Craftsvilla) to suggest:
-                1. A realistic competitor price range.
-                2. An optimized retail and B2B price structure (adjusting our baseline if it seems too low or too high for the craftsmanship described).
-                3. Short strategic tips on how to market it (e.g., 'Highlight organic dyes to justify a 20% premium').
-                
-                Respond strictly in this JSON format:
-                {{
-                  "base_material_cost": {material_cost},
-                  "labor_cost": {labor_cost},
-                  "suggested_retail_price": <optimized_retail_price_integer>,
-                  "suggested_b2b_price": <optimized_b2b_price_integer>,
-                  "competitor_range": "e.g., Rs. X - Rs. Y",
-                  "pricing_strategy_notes": "strategy notes here..."
-                }}
-                """
-                response = self.client.models.generate_content(
-                    model=self.model_name,
+                response = self.gemini_client.models.generate_content(
+                    model=self.gemini_model,
                     contents=prompt,
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
                 data = json.loads(response.text)
                 return PriceBreakdown(**data)
             except Exception as e:
-                print(f"Error during pricing LLM evaluation: {e}")
-                # Fallback to local heuristic if API fails
+                print(f"[PricingAssistant] Gemini pricing evaluation failed: {e}. Trying Groq agent...")
 
-        # 3. Heuristic Fallback
+        # --- TIER 2: Try Groq Agent ---
+        if self.groq_client:
+            try:
+                chat_completion = self.groq_client.chat.completions.create(
+                    model=self.groq_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an expert e-commerce pricing strategist for handmade Indian artisan goods. Respond strictly with JSON."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                )
+                raw_json = chat_completion.choices[0].message.content
+                data = json.loads(raw_json)
+                return PriceBreakdown(**data)
+            except Exception as e:
+                print(f"[PricingAssistant] Groq pricing evaluation failed: {e}. Falling back to local heuristic...")
+
+        # --- TIER 3: Local Heuristic Fallback ---
         # Estimate competitor range locally
         comp_min = int(calculated_retail * 0.9)
         comp_max = int(calculated_retail * 1.4)

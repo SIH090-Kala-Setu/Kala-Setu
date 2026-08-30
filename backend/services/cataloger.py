@@ -4,7 +4,11 @@ import re
 from dotenv import load_dotenv
 
 # Ensure .env is loaded
-load_dotenv()
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+if os.path.exists(env_path):
+    load_dotenv(dotenv_path=env_path)
+else:
+    load_dotenv()
 
 from google import genai
 from google.genai import types
@@ -30,22 +34,39 @@ class ProductCatalog(BaseModel):
 
 class Cataloger:
     def __init__(self):
-        # Retrieve the API key from environment variable
-        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if self.api_key and not self.api_key.startswith("your_"):
+        # 1. Primary Engine: Google Gemini
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if self.gemini_api_key and not self.gemini_api_key.startswith("your_"):
             try:
-                self.client = genai.Client(api_key=self.api_key)
-                self.model_name = "gemini-2.5-flash-lite"
+                self.gemini_client = genai.Client(api_key=self.gemini_api_key)
+                self.gemini_model = "gemini-2.5-flash-lite"
             except Exception as e:
-                print(f"Failed to initialize Gemini client: {e}")
-                self.client = None
+                print(f"[Cataloger] Failed to initialize Gemini client: {e}")
+                self.gemini_client = None
         else:
-            self.client = None
+            self.gemini_client = None
+
+        # 2. Secondary Engine: Groq AI Agent
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        if self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("gsk_your_"):
+            try:
+                from groq import Groq
+                self.groq_client = Groq(api_key=self.groq_api_key)
+                self.groq_llm_model = "llama-3.3-70b-versatile"
+                self.groq_whisper_model = "whisper-large-v3"
+            except Exception as e:
+                print(f"[Cataloger] Failed to initialize Groq client: {e}")
+                self.groq_client = None
+        else:
+            self.groq_client = None
 
     def generate_catalog_from_audio(self, audio_bytes: bytes, mime_type: str = "audio/wav", transcript_hint: str = None) -> ProductCatalog:
         """
         Transcribes the regional audio voice note, translates, and generates a structured product catalog
-        in both English and Hindi using Gemini 1.5 Flash.
+        in both English and Hindi with multi-tier failover:
+        Tier 1: Google Gemini Flash Multimodal
+        Tier 2: Groq Whisper-large-v3 (Transcription) + Groq Llama-3.3-70b (Bilingual Catalog)
+        Tier 3: Local Intelligent Synthesizer
         """
         raw_mime = mime_type.split(';')[0].strip().lower() if mime_type else "audio/mp4"
         mime_map = {
@@ -61,8 +82,8 @@ class Cataloger:
         }
         clean_mime = mime_map.get(raw_mime, raw_mime if raw_mime.startswith("audio/") else "audio/mp4")
         
-        # Check if Gemini client is active
-        if self.client:
+        # --- TIER 1: Try Gemini Multimodal ---
+        if self.gemini_client:
             try:
                 prompt = """
                 You are an expert Virtual Business Manager for marginalized artisans, weavers, and micro-entrepreneurs.
@@ -91,28 +112,59 @@ class Cataloger:
                 }
                 """
                 
-                response = self.client.models.generate_content(
-                    model=self.model_name,
+                response = self.gemini_client.models.generate_content(
+                    model=self.gemini_model,
                     contents=[types.Part.from_bytes(data=audio_bytes, mime_type=clean_mime), prompt],
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
                 
-                # Parse the JSON response
                 data = json.loads(response.text)
                 return ProductCatalog(**data)
                 
             except Exception as e:
-                print(f"Error during Gemini audio processing: {e}")
-        
-        # If client not available or Gemini threw an error, use intelligent dynamic speech synthesizer
+                print(f"[Cataloger] Gemini audio processing failed: {e}. Falling back to Groq agent...")
+
+        # --- TIER 2: Try Groq Agent (Whisper + Llama 3.3) ---
+        if self.groq_client:
+            try:
+                ext_map = {
+                    "audio/mp4": "m4a",
+                    "audio/aac": "aac",
+                    "audio/mp3": "mp3",
+                    "audio/wav": "wav",
+                    "audio/webm": "webm",
+                    "audio/ogg": "ogg",
+                }
+                ext = ext_map.get(clean_mime, "wav")
+                file_tuple = (f"artisan_voice.{ext}", audio_bytes, clean_mime)
+                
+                transcription_res = self.groq_client.audio.transcriptions.create(
+                    file=file_tuple,
+                    model=self.groq_whisper_model,
+                    response_format="verbose_json"
+                )
+                
+                transcribed_text = getattr(transcription_res, "text", "") or transcript_hint or ""
+                detected_lang = getattr(transcription_res, "language", "Hindi")
+                
+                if transcribed_text.strip():
+                    return self._generate_catalog_with_groq(transcribed_text, detected_lang)
+            except Exception as e:
+                print(f"[Cataloger] Groq audio transcription/generation failed: {e}. Falling back to smart heuristic...")
+
+        # --- TIER 3: Local Smart Heuristic Fallback ---
         seed = transcript_hint or "Traditional handcrafted artisan piece with natural materials"
         return self._generate_smart_catalog(seed, regional_lang="Hindi / Regional")
 
     def generate_catalog_from_text(self, description_text: str, regional_lang: str = "Hindi") -> ProductCatalog:
         """
-        Takes raw text input in a regional language and translates/enriches it into a catalog.
+        Takes raw text input in a regional language and translates/enriches it into a catalog with multi-tier failover.
+        Tier 1: Google Gemini Flash
+        Tier 2: Groq Llama-3.3-70b-versatile
+        Tier 3: Local Smart Heuristic
         """
-        if self.client:
+        # --- TIER 1: Try Gemini Text ---
+        if self.gemini_client:
             try:
                 prompt = f"""
                 You are an expert Virtual Business Manager for marginalized artisans.
@@ -130,11 +182,22 @@ class Cataloger:
                 - tags: 5-8 SEO tags
                 - category: Best fitting category (Textiles, Handicrafts, Pottery, Jewelry, Paintings & Art, Woodwork)
                 
-                Respond strictly in JSON format matching the schema.
+                Respond strictly in JSON format matching the schema:
+                {{
+                   "detected_language": "{regional_lang}",
+                   "raw_transcription": "{description_text}",
+                   "title_en": "...",
+                   "description_en": "...",
+                   "title_hi": "...",
+                   "description_hi": "...",
+                   "materials": ["..."],
+                   "tags": ["..."],
+                   "category": "..."
+                }}
                 """
                 
-                response = self.client.models.generate_content(
-                    model=self.model_name,
+                response = self.gemini_client.models.generate_content(
+                    model=self.gemini_model,
                     contents=prompt,
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
@@ -142,10 +205,57 @@ class Cataloger:
                 data = json.loads(response.text)
                 return ProductCatalog(**data)
             except Exception as e:
-                print(f"Error during Gemini text processing: {e}")
+                print(f"[Cataloger] Gemini text processing failed: {e}. Falling back to Groq agent...")
 
-        # Intelligent dynamic catalog generator based on actual user input
+        # --- TIER 2: Try Groq Agent ---
+        if self.groq_client:
+            try:
+                return self._generate_catalog_with_groq(description_text, regional_lang)
+            except Exception as e:
+                print(f"[Cataloger] Groq text processing failed: {e}. Falling back to smart heuristic...")
+
+        # --- TIER 3: Local Smart Heuristic ---
         return self._generate_smart_catalog(description_text, regional_lang=regional_lang)
+
+    def _generate_catalog_with_groq(self, description_text: str, regional_lang: str = "Hindi") -> ProductCatalog:
+        """
+        Synthesizes structured bilingual catalog using Groq Llama 3.3 70B JSON mode.
+        """
+        system_prompt = (
+            "You are an expert Virtual Business Manager and e-commerce copywriter for rural Indian artisans. "
+            "Always respond strictly with valid JSON conforming to the requested schema with no extra prose."
+        )
+        user_prompt = f"""
+        An artisan describes their handcrafted product in {regional_lang} as follows:
+        "{description_text}"
+
+        Generate a high-converting, professional e-commerce product catalog in JSON format:
+        {{
+            "detected_language": "{regional_lang}",
+            "raw_transcription": "{description_text}",
+            "title_en": "Catchy professional title in English",
+            "description_en": "Rich SEO product story in English highlighting artisan heritage and materials",
+            "title_hi": "Catchy professional title in Hindi",
+            "description_hi": "Rich SEO product story in Hindi highlighting artisan heritage",
+            "materials": ["Material 1", "Material 2"],
+            "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+            "category": "Textiles & Handloom"
+        }}
+        """
+
+        chat_completion = self.groq_client.chat.completions.create(
+            model=self.groq_llm_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.3,
+        )
+
+        raw_json = chat_completion.choices[0].message.content
+        data = json.loads(raw_json)
+        return ProductCatalog(**data)
 
     def _generate_smart_catalog(self, user_text: str, regional_lang: str = "Hindi") -> ProductCatalog:
         """

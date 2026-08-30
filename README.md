@@ -8,10 +8,13 @@
 <div align="center">
 
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100.0-009688.svg?style=flat&logo=fastapi&logoColor=white)
+![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B.svg?style=flat&logo=flutter&logoColor=white)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB.svg?style=flat&logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-5.4.0-646CFF.svg?style=flat&logo=vite&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791.svg?style=flat&logo=postgresql&logoColor=white)
-![Google Gemini](https://img.shields.io/badge/Google%20Gemini-1.5%20Flash-4285F4.svg?style=flat&logo=google&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-4285F4.svg?style=flat&logo=google&logoColor=white)
+![Groq AI](https://img.shields.io/badge/Groq%20AI-Whisper%20%2B%20Llama%203.3-F55036.svg?style=flat)
+![FCM v1](https://img.shields.io/badge/Push-Firebase%20FCM%20v1-FFCA28.svg?style=flat&logo=firebase&logoColor=black)
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.8.0-5C3EE8.svg?style=flat&logo=opencv&logoColor=white)
 ![ONNX Runtime](https://img.shields.io/badge/ONNX-u2netp%20(4.5MB)-005CED.svg?style=flat&logo=onnx&logoColor=white)
 ![JWT Auth](https://img.shields.io/badge/Security-JWT%20%2B%20Bcrypt-000000.svg?style=flat&logo=jsonwebtokens&logoColor=white)
@@ -25,13 +28,14 @@
 ## 📌 Table of Contents
 
 1. [Problem Statement & Background](#-problem-statement--background)
-2. [Platform Architecture & 9-Module System](#-platform-architecture--9-module-system)
-3. [User Roles & Role-Based Dashboards](#-user-roles--role-based-dashboards)
+2. [Repository Structure](#-repository-structure)
+3. [Platform Architecture & 9-Module System](#-platform-architecture--9-module-system)
+4. [User Roles & Role-Based Dashboards](#-user-roles--role-based-dashboards)
    - [Artisan Capability Suite](#-artisan-capability-suite)
    - [Cluster Aggregator Capability Suite](#-cluster-aggregator-capability-suite)
    - [B2B Buyer Capability Suite](#-b2b-buyer-capability-suite)
    - [MoSJE Admin Governance Console](#-mosje-governance-console-7-pillars)
-4. [Module Deep-Dives](#️-module-deep-dives)
+5. [Module Deep-Dives](#️-module-deep-dives)
    - [Module 1 — User Onboarding & Profile Management](#module-1--user-onboarding--profile-management)
    - [Module 2 — AI Image Enhancer & Studio](#module-2--ai-image-enhancer--studio)
    - [Module 3 — Multilingual Auto-Cataloger](#module-3--multilingual-auto-cataloger)
@@ -41,14 +45,42 @@
    - [Module 7 — Analytics & Insights](#module-7--analytics--insights)
    - [Module 8 — Notification & Support](#module-8--notification--support)
    - [Module 9 — Role-Based Dashboards](#module-9--role-based-dashboards)
-5. [MoSJE Governance Console (7 Pillars)](#-mosje-governance-console-7-pillars)
-6. [System Architecture & Data Flow](#-system-architecture--data-flow)
-7. [Database Schema (Entity-Relationship)](#️-database-schema-entity-relationship)
-8. [API Endpoint Reference (62+ Endpoints)](#-api-endpoint-reference-62-endpoints)
-9. [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fair-wage-engine)
-10. [Tech Stack](#️-tech-stack)
-11. [Setup & Installation Guide](#-setup--installation-guide)
-12. [How to Run](#-how-to-run)
+6. [MoSJE Governance Console (7 Pillars)](#-mosje-governance-console-7-pillars)
+7. [System Architecture & Data Flow](#-system-architecture--data-flow)
+8. [Database Schema (Entity-Relationship)](#️-database-schema-entity-relationship)
+9. [API Endpoint Reference (62+ Endpoints)](#-api-endpoint-reference-62-endpoints)
+10. [Dynamic Pricing & Fair Wage Engine](#-dynamic-pricing--fair-wage-engine)
+11. [Tech Stack](#️-tech-stack)
+12. [Setup & Installation Guide](#-setup--installation-guide)
+13. [How to Run](#-how-to-run)
+14. [Known Issues & Fixes](#-known-issues--fixes)
+
+---
+
+## 📁 Repository Structure
+
+```
+KalaSetu/
+├── Kama-Setu/                  # Web platform (React frontend + FastAPI backend)
+│   ├── backend/                # FastAPI server — 62+ endpoints, 19 DB tables
+│   │   ├── main.py             # All API routes
+│   │   ├── auth.py             # JWT + bcrypt authentication
+│   │   ├── models.py           # SQLAlchemy ORM models
+│   │   ├── database.py         # PostgreSQL engine & session
+│   │   ├── services/           # AI image processor, cataloger, pricing, notifications
+│   │   ├── .env                # Environment variables (DATABASE_URL, GEMINI_API_KEY, etc.)
+│   │   └── requirements.txt
+│   └── frontend/               # React 18 + Vite SPA — 29 components
+│       └── src/
+│           ├── components/     # Role dashboards, marketplace, studio, admin console
+│           ├── api/            # Typed API client modules per role
+│           └── context/        # AuthContext, ToastContext
+└── learningdart/               # Flutter mobile app (Android, iOS, Web, Windows)
+    └── lib/
+        ├── core/               # Network (Dio), router, theme, localization, storage
+        ├── features/           # Artisan, Aggregator, Buyer, Auth, Onboarding screens
+        └── shared/             # Widgets, models, providers
+```
 
 ---
 
@@ -227,17 +259,17 @@ Language   →   Name+Phone  →  Role Select →  Craft Type  →  Region      
 
 ---
 
-### Module 3 — Multilingual Auto-Cataloger
+### Module 3 — Multilingual Auto-Cataloger (Multi-Tier AI Engine)
 
-**Real-time voice-to-catalog pipeline** supporting 9 Indian languages:
+**Real-time voice-to-catalog pipeline with automated Groq fallback:**
 
-- (i) **Live microphone recording** in browser — animated sound wave, digital `MM:SS / 01:00` timer
-- (ii) **Real-time Speech-to-Text** — `webkitSpeechRecognition` transcribes speech to text on-screen as artisan speaks
-- (iii) **Automatic bilingual translation** — Google Gemini 1.5 Flash translates and expands to English + Hindi
-- (iv) **SEO-friendly description generation** — extracts materials, occasions, and tags for e-commerce optimization
-- (v) **Product category auto-tagging** — craft type, material, occasion, technique extracted automatically
-- (vi) **Draft review & edit** before publishing — all fields editable by artisan
-- (vii) **Text-based input fallback** — for artisans with partial digital literacy
+- (i) **Tier 1 (Primary): Google Gemini 2.5 Flash** — multimodal audio transcription, bilingual EN+HI catalog expansion, and SEO tag extraction
+- (ii) **Tier 2 (Fallback): Groq AI Agent** — ultra-fast audio transcription via **Groq Whisper-large-v3** + structured bilingual catalog synthesis via **Groq Llama-3.3-70b-versatile** (JSON mode)
+- (iii) **Tier 3 (Resilience): Local Smart Synthesizer** — rule-based deterministic keyword analyzer and catalog builder ensuring zero downtime
+- (iv) **Live microphone recording & speech-to-text** — animated sound wave, digital `MM:SS / 01:00` timer, and real-time transcription
+- (v) **SEO-friendly description generation** — extracts materials, occasions, dimensions, and 5-8 search tags
+- (vi) **Product category auto-tagging** — craft type, technique, and materials extracted automatically
+- (vii) **Draft review & edit** — all generated titles, stories, and tags are fully editable before publishing
 
 **Supported Languages:**
 
@@ -250,14 +282,14 @@ Language   →   Name+Phone  →  Role Select →  Craft Type  →  Region      
 
 ### Module 4 — Dynamic Pricing Assistant
 
-**Cost-plus fair wage formula** with craft multipliers and market benchmarking:
+**Cost-plus fair wage formula with AI market benchmarking:**
 
-- (i) ML-style pricing algorithm analyzing product category + material
-- (ii) **Competitive price suggestion** based on current market bands (Amazon Karigar, Etsy, ONDC)
-- (iii) Raw material cost consideration in all calculations
-- (iv) **3-tier price display**: Min. Breakeven · Recommended D2C · Premium · B2B Wholesale
-- (v) Market competitor range comparison
-- (vi) **Artisan override** — publish at custom price or update inline later in Inventory
+- (i) **Cost-plus fair labor formula** — ₹150/hr skilled labor benchmark + raw material costs
+- (ii) **Craft value multipliers** — 1.3× (Pottery) to 2.0× (Folk Art) reflecting artistic rarity
+- (iii) **AI Market Benchmarking (Gemini + Groq Llama 3.3 Fallback)** — extracts live competitor price ranges across Amazon Karigar, Etsy, and ONDC
+- (iv) **3-tier price display**: Min. Breakeven · Recommended D2C · Premium · B2B Wholesale (15% bulk discount)
+- (v) **Actionable pricing strategy tips** — tailored marketing recommendations to justify handmade value
+- (vi) **Artisan override** — custom price entry or inline price editing in Inventory (`PUT /products/{id}/price`)
 
 ---
 
@@ -835,7 +867,8 @@ The **₹150/hr (₹1,200/day)** benchmark is derived from:
 | rembg | ≥2.0.50 | AI background removal (wraps ONNX u2netp) |
 | Pillow | ≥10.0.0 | Image processing, resizing, canvas operations |
 | opencv-python | ≥4.8.0 | Mask-aware unsharp enhancement, quality scoring |
-| google-genai | ≥1.0.0 | Google Gemini 1.5 Flash multimodal API |
+| google-genai | ≥1.0.0 | Google Gemini 2.5 Flash multimodal API (Primary AI) |
+| groq | ≥0.9.0 | Groq Whisper + Llama 3.3 70B API (Fallback AI Agent) |
 | firebase-admin | ≥6.0.0 | Firebase Cloud Messaging (FCM HTTP v1) push engine |
 | qrcode[pil] | Latest | QR code PNG generation for catalog sharing |
 | python-dotenv | ≥1.0.0 | Environment variable loading |
@@ -954,12 +987,40 @@ npm run dev
 
 ### Default Test Credentials
 
-| Role | Username | Password | Notes |
+All pre-seeded accounts use the password: **`asdfghjkl`**
+
+| Role | Username / Phone | Password | Notes |
 |:---|:---|:---|:---|
-| MoSJE Admin | `admin` | `admin` | Full administrative governance console access |
-| Artisan | Register via `/auth/register` or Onboarding Wizard | Custom | Full catalog, studio & income analytics |
-| B2B Buyer | Register via `/auth/register` with `role=Buyer` | Custom | Direct quotation & inquiry tracking |
-| Aggregator | Register via `/auth/register` with `role=Aggregator` | Custom | Cluster management & assisted onboarding |
+| **MoSJE Admin** | `admin` | `asdfghjkl` | Full governance console access |
+| **Artisan** | `1234567890` | `asdfghjkl` | Verified artisan with active listings |
+| **Artisan** | `8595630567` | `asdfghjkl` | Registered artisan |
+| **Aggregator** | `1234` | `asdfghjkl` | Cluster aggregator |
+| **B2B Buyer** | `123` | `asdfghjkl` | Verified enterprise buyer |
+| **B2B Buyer** | `pkgirpade` | `asdfghjkl` | Registered buyer |
+
+---
+
+## 🐛 Known Issues & Fixes
+
+### Products / Marketplace not loading on `localhost:8000`
+
+**Symptom:** `/products` endpoint returns `HTTP 401` when accessed from the Flutter app or web frontend on localhost, but works fine on the deployed URL.
+
+**Root Cause:** `get_current_user` in `auth.py` was raising a hard `HTTP 401` exception when a stored JWT token was present but invalid or expired (e.g. a token issued by the deployed backend being sent to a fresh local server). Since `/products` uses `Optional[models.User]`, it should gracefully handle missing or invalid auth — but the exception was killing the request before the DB query ran.
+
+**Fix applied in `auth.py`:** `get_current_user` now returns `None` instead of raising on invalid/expired tokens. Endpoints that strictly require authentication (`/auth/me`, `/artisan/dashboard`, etc.) already perform their own `if not current_user: raise HTTPException(401)` check.
+
+```python
+# Before (broken on localhost with stale token)
+except JWTError:
+    raise credentials_exception  # killed /products with 401
+
+# After (fixed)
+except JWTError:
+    return None  # public endpoints continue normally
+```
+
+A `get_password_hash = hash_password` alias was also added to `auth.py` since `main.py` calls `auth.get_password_hash()` in the aggregator onboard endpoint.
 
 ---
 
@@ -968,6 +1029,6 @@ npm run dev
 **KalaSetu (कला सेतु)** — *Empowering Indian Artisans through AI, Fair Wages & Digital Market Linkages.*  
 Developed for the **Smart India Hackathon (SIH26090)** under the **Ministry of Social Justice & Empowerment (MoSJE)**.
 
-*62+ API Endpoints · 19 DB Tables · 29 React Components · 9 Platform Modules · 4 User Roles*
+*62+ API Endpoints · 19 DB Tables · 29 React Components · Flutter Mobile App · 9 Platform Modules · 4 User Roles*
 
 </div>
