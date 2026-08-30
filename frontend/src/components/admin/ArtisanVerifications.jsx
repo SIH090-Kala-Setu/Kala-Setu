@@ -18,7 +18,8 @@ import {
   FileText,
   MapPin,
   Phone,
-  Sparkles
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 
 export default function ArtisanVerifications({ onActionComplete }) {
@@ -35,7 +36,6 @@ export default function ArtisanVerifications({ onActionComplete }) {
   const fetchVerifications = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch data using the backend API
       const data = await getVerifications(
         statusFilter !== 'all' ? statusFilter : null,
         kycFilter !== 'all' ? kycFilter : null
@@ -126,7 +126,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
     }
   };
 
-  // Compute filter metrics for stats bar
+  // Compute filter metrics for counts
   const metrics = useMemo(() => {
     let total = verifications.length;
     let aadhaarGivenCount = 0;
@@ -214,202 +214,158 @@ export default function ArtisanVerifications({ onActionComplete }) {
       label: 'Aadhaar Given',
       icon: Shield,
       count: metrics.aadhaarGivenCount,
-      badgeColor: 'badge-purple',
-      desc: 'Artisans with Aadhaar submitted'
+      desc: 'Aadhaar submitted'
     },
     {
       id: 'aadhaar_and_bank',
       label: 'Aadhaar + Bank',
       icon: CreditCard,
       count: metrics.aadhaarAndBankCount,
-      badgeColor: 'badge-info',
-      desc: 'Complete identity & payout dossier'
+      desc: 'Full KYC dossier'
     },
     {
       id: 'none',
-      label: 'None / Incomplete',
+      label: 'Incomplete / None',
       icon: AlertCircle,
       count: metrics.noneCount,
-      badgeColor: 'badge-warning',
-      desc: 'Missing identity & banking details'
+      desc: 'Missing details'
     },
     {
       id: 'all_approved',
       label: 'All Approved',
       icon: CheckCheck,
       count: metrics.allApprovedCount,
-      badgeColor: 'badge-success',
-      desc: 'Certified and active artisans'
+      desc: 'Fully certified'
     }
   ];
 
   return (
-    <div>
-      {/* Top Header */}
-      <div className="admin-header-flex" style={{ marginBottom: '20px' }}>
+    <div style={{ width: '100%' }}>
+      {/* Inline Scoped Responsive CSS */}
+      <style>{`
+        .kyc-filter-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 8px;
+          width: 100%;
+        }
+        .kyc-btn-cell {
+          width: 100%;
+        }
+        .search-decision-bar {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 14px;
+          flex-wrap: wrap;
+        }
+        .search-input-box {
+          position: relative;
+          flex: 1;
+          min-width: 260px;
+        }
+        .decision-status-group {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .status-button-grid {
+          display: flex;
+          gap: 6px;
+        }
+        .mobile-card-feed {
+          display: none;
+        }
+        .desktop-table-wrapper {
+          display: block;
+        }
+
+        /* Mobile & Tablet Styles (<= 860px) */
+        @media (max-width: 860px) {
+          .kyc-filter-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .kyc-btn-cell.cell-all {
+            grid-column: span 2 !important;
+          }
+          .search-decision-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+          }
+          .search-input-box {
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+          .decision-status-group {
+            width: 100% !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 6px !important;
+          }
+          .status-button-grid {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            width: 100% !important;
+            gap: 4px !important;
+          }
+          .status-button-grid button {
+            text-align: center !important;
+            padding: 7px 4px !important;
+            font-size: 0.74rem !important;
+            white-space: nowrap !important;
+          }
+          .desktop-table-wrapper {
+            display: none !important;
+          }
+          .mobile-card-feed {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 12px !important;
+          }
+        }
+      `}</style>
+
+      {/* Header Bar */}
+      <div className="admin-header-flex" style={{ marginBottom: '14px' }}>
         <div>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Shield size={22} style={{ color: 'var(--primary)' }} />
-            Artisan Identity & KYC Verification Pipeline
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem', margin: 0 }}>
+            <Shield size={20} style={{ color: 'var(--primary)' }} />
+            Artisan Identity & KYC Pipeline
           </h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Verify Aadhaar credentials, bank account linkage, and official certification before marketplace listings go live.
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '2px', marginBottom: 0 }}>
+            Verify Aadhaar credentials, bank linkage, and eligibility before listings go live.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             onClick={() => fetchVerifications()}
             className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', padding: '6px 12px' }}
           >
-            <Clock size={14} /> Refresh Data
+            <Clock size={13} /> Refresh
           </button>
         </div>
       </div>
 
-      {/* KPI Stat Cards Summary */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '12px',
-          marginBottom: '20px'
-        }}
-      >
-        <div
-          onClick={() => setKycFilter('all')}
-          style={{
-            backgroundColor: kycFilter === 'all' ? 'rgba(230, 126, 34, 0.12)' : 'var(--bg-surface)',
-            border: `1px solid ${kycFilter === 'all' ? 'var(--primary)' : 'var(--border-color)'}`,
-            borderRadius: 'var(--border-radius-md)',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            transition: 'var(--transition-smooth)'
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Total Pipeline
-          </div>
-          <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-            {metrics.total}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            {metrics.pendingCount} Pending Review
-          </div>
-        </div>
-
-        <div
-          onClick={() => setKycFilter('aadhaar_given')}
-          style={{
-            backgroundColor: kycFilter === 'aadhaar_given' ? 'rgba(139, 92, 246, 0.12)' : 'var(--bg-surface)',
-            border: `1px solid ${kycFilter === 'aadhaar_given' ? 'var(--purple)' : 'var(--border-color)'}`,
-            borderRadius: 'var(--border-radius-md)',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            transition: 'var(--transition-smooth)'
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            🪪 Aadhaar Given
-          </div>
-          <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--purple)', marginTop: '4px' }}>
-            {metrics.aadhaarGivenCount}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Identity Submitted
-          </div>
-        </div>
-
-        <div
-          onClick={() => setKycFilter('aadhaar_and_bank')}
-          style={{
-            backgroundColor: kycFilter === 'aadhaar_and_bank' ? 'rgba(2, 132, 199, 0.12)' : 'var(--bg-surface)',
-            border: `1px solid ${kycFilter === 'aadhaar_and_bank' ? 'var(--info)' : 'var(--border-color)'}`,
-            borderRadius: 'var(--border-radius-md)',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            transition: 'var(--transition-smooth)'
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: 'var(--info)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            💳 Aadhaar + Bank
-          </div>
-          <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--info)', marginTop: '4px' }}>
-            {metrics.aadhaarAndBankCount}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Full KYC Dossier
-          </div>
-        </div>
-
-        <div
-          onClick={() => setKycFilter('none')}
-          style={{
-            backgroundColor: kycFilter === 'none' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-surface)',
-            border: `1px solid ${kycFilter === 'none' ? 'var(--warning)' : 'var(--border-color)'}`,
-            borderRadius: 'var(--border-radius-md)',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            transition: 'var(--transition-smooth)'
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: 'var(--warning)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            ⏳ None / Incomplete
-          </div>
-          <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--warning)', marginTop: '4px' }}>
-            {metrics.noneCount}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Awaiting Credentials
-          </div>
-        </div>
-
-        <div
-          onClick={() => setKycFilter('all_approved')}
-          style={{
-            backgroundColor: kycFilter === 'all_approved' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-surface)',
-            border: `1px solid ${kycFilter === 'all_approved' ? 'var(--success)' : 'var(--border-color)'}`,
-            borderRadius: 'var(--border-radius-md)',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            transition: 'var(--transition-smooth)'
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            ✅ All Approved
-          </div>
-          <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--success)', marginTop: '4px' }}>
-            {metrics.allApprovedCount}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Fully Certified
-          </div>
-        </div>
-      </div>
-
-      {/* Primary Filter Tabs Bar (Aadhaar Given, Aadhaar + Bank, None, All Approved, All) */}
+      {/* IDENTITY & KYC DOSSIER FILTERS (Clean Responsive Grid, NO SCROLL) */}
       <div
         style={{
           backgroundColor: 'var(--bg-surface)',
           border: '1px solid var(--border-color)',
           borderRadius: 'var(--border-radius-md)',
           padding: '12px 14px',
-          marginBottom: '16px'
+          marginBottom: '14px'
         }}
       >
-        <div style={{ fontSize: '0.74rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
           Identity & KYC Dossier Filters:
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-            gap: '8px',
-            width: '100%'
-          }}
-        >
+        <div className="kyc-filter-grid">
           {kycFilterOptions.map((opt) => {
             const Icon = opt.icon;
             const isActive = kycFilter === opt.id;
@@ -417,6 +373,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
               <button
                 key={opt.id}
                 onClick={() => setKycFilter(opt.id)}
+                className={`kyc-btn-cell ${opt.id === 'all' ? 'cell-all' : ''}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -430,9 +387,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
                   cursor: 'pointer',
                   fontWeight: isActive ? '600' : '500',
                   fontSize: '0.82rem',
-                  whiteSpace: 'nowrap',
-                  transition: 'var(--transition-smooth)',
-                  width: '100%'
+                  transition: 'var(--transition-smooth)'
                 }}
               >
                 <Icon size={14} style={{ flexShrink: 0 }} />
@@ -440,7 +395,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
                 <span
                   style={{
                     backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-surface)',
-                    padding: '2px 6px',
+                    padding: '1px 6px',
                     borderRadius: '10px',
                     fontSize: '0.72rem',
                     fontWeight: '700',
@@ -455,21 +410,12 @@ export default function ArtisanVerifications({ onActionComplete }) {
         </div>
       </div>
 
-      {/* Secondary Controls: Search & KYC Status Filter */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '12px',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px'
-        }}
-      >
-        {/* Search input */}
-        <div style={{ position: 'relative', flex: '1', maxWidth: '420px', minWidth: '260px' }}>
+      {/* Search Bar & Decision Status Segmented Control */}
+      <div className="search-decision-bar">
+        {/* Search Box */}
+        <div className="search-input-box">
           <Search
-            size={16}
+            size={15}
             style={{
               position: 'absolute',
               left: '12px',
@@ -480,11 +426,11 @@ export default function ArtisanVerifications({ onActionComplete }) {
           />
           <input
             type="text"
-            placeholder="Search by artisan name, craft, phone, Aadhaar, state..."
+            placeholder="Search by artisan name, craft, phone, Aadhaar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="auth-input"
-            style={{ width: '100%', paddingLeft: '36px' }}
+            style={{ width: '100%', paddingLeft: '34px', fontSize: '0.85rem' }}
           />
           {searchTerm && (
             <button
@@ -498,7 +444,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
                 border: 'none',
                 color: 'var(--text-muted)',
                 cursor: 'pointer',
-                fontSize: '0.8rem'
+                fontSize: '0.85rem'
               }}
             >
               ✕
@@ -506,29 +452,32 @@ export default function ArtisanVerifications({ onActionComplete }) {
           )}
         </div>
 
-        {/* Status filter buttons */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginRight: '4px' }}>
+        {/* Decision Status Buttons */}
+        <div className="decision-status-group">
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>
             Decision Status:
           </span>
-          {['all', 'Pending', 'Approved', 'Rejected'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '0.78rem',
-                cursor: 'pointer',
-                backgroundColor: statusFilter === st ? 'var(--bg-surface-elevated)' : 'transparent',
-                color: statusFilter === st ? 'var(--primary)' : 'var(--text-secondary)',
-                border: `1px solid ${statusFilter === st ? 'var(--primary)' : 'var(--border-color)'}`,
-                fontWeight: statusFilter === st ? '600' : '400'
-              }}
-            >
-              {st === 'all' ? 'All Statuses' : st}
-            </button>
-          ))}
+          <div className="status-button-grid">
+            {['all', 'Pending', 'Approved', 'Rejected'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  backgroundColor: statusFilter === st ? 'var(--bg-surface-elevated)' : 'transparent',
+                  color: statusFilter === st ? 'var(--primary)' : 'var(--text-secondary)',
+                  border: `1px solid ${statusFilter === st ? 'var(--primary)' : 'var(--border-color)'}`,
+                  fontWeight: statusFilter === st ? '600' : '400',
+                  transition: 'var(--transition-smooth)'
+                }}
+              >
+                {st === 'all' ? 'All Statuses' : st}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -539,29 +488,27 @@ export default function ArtisanVerifications({ onActionComplete }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           backgroundColor: 'var(--bg-surface-elevated)',
-          padding: '8px 14px',
+          padding: '8px 12px',
           borderRadius: 'var(--border-radius-sm)',
           marginBottom: '14px',
-          fontSize: '0.82rem',
-          border: '1px solid var(--border-color)'
+          fontSize: '0.8rem',
+          border: '1px solid var(--border-color)',
+          flexWrap: 'wrap',
+          gap: '6px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-          <Sparkles size={15} style={{ color: 'var(--primary)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+          <Sparkles size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
           <span>
-            Showing <strong>{filtered.length}</strong> matching records for filter:{' '}
+            Showing <strong>{filtered.length}</strong> records for:{' '}
             <strong style={{ color: 'var(--text-primary)' }}>
               {kycFilterOptions.find((o) => o.id === kycFilter)?.label || 'All'}
             </strong>
             {statusFilter !== 'all' && (
-              <span>
-                {' '}• Status: <strong style={{ color: 'var(--text-primary)' }}>{statusFilter}</strong>
-              </span>
+              <span> • Status: <strong style={{ color: 'var(--text-primary)' }}>{statusFilter}</strong></span>
             )}
             {searchTerm && (
-              <span>
-                {' '}• Matching: "<em>{searchTerm}</em>"
-              </span>
+              <span> • "{searchTerm}"</span>
             )}
           </span>
         </div>
@@ -578,7 +525,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
               border: 'none',
               color: 'var(--primary)',
               cursor: 'pointer',
-              fontSize: '0.78rem',
+              fontSize: '0.76rem',
               fontWeight: '600'
             }}
           >
@@ -587,260 +534,409 @@ export default function ArtisanVerifications({ onActionComplete }) {
         )}
       </div>
 
-      {/* Verification Data Table */}
-      <div className="data-table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th style={{ width: '80px' }}>ID</th>
-              <th style={{ minWidth: '180px' }}>Artisan & Craft</th>
-              <th style={{ minWidth: '140px' }}>Location & Contact</th>
-              <th style={{ minWidth: '180px' }}>Aadhaar Details</th>
-              <th style={{ minWidth: '170px' }}>Bank & Payout Details</th>
-              <th style={{ minWidth: '110px' }}>KYC Status</th>
-              <th style={{ minWidth: '140px' }}>Review Decision</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '36px' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                    <Clock className="spin" size={18} /> Loading Verification Pipeline...
-                  </div>
-                </td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  <AlertCircle size={28} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--text-muted)' }} />
-                  <div>No artisan verifications match the selected filters.</div>
-                  <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
-                    Try selecting a different filter tab or clearing the search query.
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              filtered.map((v) => {
-                const hasAadhaar = checkHasAadhaar(v);
-                const hasBank = checkHasBank(v);
-                const isAadhaarVisible = Boolean(showAadhaarMap[v.id]);
+      {/* 1. MOBILE & TABLET CARD FEED (<= 860px) */}
+      <div className="mobile-card-feed">
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
+            <Clock className="spin" size={20} style={{ display: 'block', margin: '0 auto 8px' }} />
+            Loading Verification Pipeline...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
+            <AlertCircle size={26} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--text-muted)' }} />
+            <div>No artisan verifications match the selected filters.</div>
+          </div>
+        ) : (
+          filtered.map((v) => {
+            const hasAadhaar = checkHasAadhaar(v);
+            const hasBank = checkHasBank(v);
+            const isAadhaarVisible = Boolean(showAadhaarMap[v.id]);
 
-                return (
-                  <tr key={v.id}>
-                    {/* ID */}
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      {v.id.substring(0, 8)}...
-                    </td>
+            return (
+              <div
+                key={v.id}
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--border-radius-md)',
+                  padding: '14px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}
+              >
+                {/* Card Top: Avatar + Name + Status */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '700',
+                        color: 'var(--primary)',
+                        fontSize: '0.9rem',
+                        border: '1px solid var(--border-color)'
+                      }}
+                    >
+                      {v.artisan_name ? v.artisan_name.charAt(0).toUpperCase() : 'A'}
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: '0.92rem' }}>{v.artisan_name}</strong>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                        <span className="badge badge-purple badge-sm">
+                          {v.craft_type || 'Handicrafts'}
+                        </span>
+                        {v.cluster_name && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            🏫 {v.cluster_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                    {/* Artisan & Craft */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--bg-surface-elevated)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: '700',
-                            color: 'var(--primary)',
-                            fontSize: '0.85rem',
-                            border: '1px solid var(--border-color)'
-                          }}
-                        >
-                          {v.artisan_name ? v.artisan_name.charAt(0).toUpperCase() : 'A'}
+                  <span
+                    className={`badge ${
+                      v.status === 'Approved'
+                        ? 'badge-success'
+                        : v.status === 'Rejected'
+                        ? 'badge-danger'
+                        : 'badge-warning'
+                    }`}
+                  >
+                    {v.status}
+                  </span>
+                </div>
+
+                {/* Contact & Location */}
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Phone size={12} />
+                    <span>{v.phone_number}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={12} />
+                    <span>{[v.district, v.state].filter(Boolean).join(', ') || 'Uttar Pradesh'}</span>
+                  </div>
+                </div>
+
+                {/* Aadhaar & Bank Details Row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px', fontSize: '0.78rem' }}>
+                  {/* Aadhaar Block */}
+                  <div style={{ backgroundColor: 'var(--bg-surface-elevated)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '2px' }}>Aadhaar</div>
+                    {hasAadhaar ? (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '600' }}>
+                            {formatMaskedAadhaar(v.aadhaar_number, isAadhaarVisible)}
+                          </span>
+                          <button
+                            onClick={() => toggleAadhaarVisibility(v.id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 2px' }}
+                          >
+                            {isAadhaarVisible ? <EyeOff size={12} /> : <Eye size={12} />}
+                          </button>
                         </div>
-                        <div>
-                          <strong>{v.artisan_name}</strong>
+                        <div style={{ marginTop: '2px' }}>
+                          {v.aadhaar_verified ? (
+                            <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✓ Verified</span>
+                          ) : (
+                            <span style={{ color: 'var(--purple)', fontSize: '0.7rem' }}>🪪 Submitted</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--error)', fontSize: '0.72rem' }}>✕ Not Provided</span>
+                    )}
+                  </div>
+
+                  {/* Bank Block */}
+                  <div style={{ backgroundColor: 'var(--bg-surface-elevated)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '2px' }}>Bank / Payout</div>
+                    {hasBank ? (
+                      <div>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.74rem' }}>
+                          {v.bank_account && String(v.bank_account) !== '000000000000'
+                            ? `A/C: ••••${String(v.bank_account).slice(-4)}`
+                            : v.upi_id || 'Details Linked'}
+                        </div>
+                        <div style={{ marginTop: '2px' }}>
+                          {v.bank_verified ? (
+                            <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✓ Bank Linked</span>
+                          ) : (
+                            <span style={{ color: 'var(--info)', fontSize: '0.7rem' }}>🏦 Submitted</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--warning)', fontSize: '0.72rem' }}>⏳ Missing</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mobile Card Actions */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button
+                    onClick={() => setSelectedDossier(v)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ flex: 1, padding: '7px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  >
+                    <FileText size={13} /> Dossier
+                  </button>
+
+                  {v.status === 'Pending' && (
+                    <>
+                      <button
+                        onClick={() => handleReview(v.id, 'Approved')}
+                        disabled={actionLoadingId === v.id}
+                        className="btn btn-success btn-sm"
+                        style={{ flex: 1, padding: '7px', fontSize: '0.78rem' }}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReview(v.id, 'Rejected')}
+                        disabled={actionLoadingId === v.id}
+                        className="btn btn-secondary btn-sm"
+                        style={{ flex: 1, padding: '7px', fontSize: '0.78rem' }}
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 2. DESKTOP / TABLET DATA TABLE VIEW (> 860px) */}
+      <div className="desktop-table-wrapper">
+        <div className="data-table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th style={{ width: '80px' }}>ID</th>
+                <th style={{ minWidth: '180px' }}>Artisan & Craft</th>
+                <th style={{ minWidth: '140px' }}>Location & Contact</th>
+                <th style={{ minWidth: '180px' }}>Aadhaar Details</th>
+                <th style={{ minWidth: '170px' }}>Bank & Payout Details</th>
+                <th style={{ minWidth: '110px' }}>KYC Status</th>
+                <th style={{ minWidth: '140px' }}>Review Decision</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '36px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+                      <Clock className="spin" size={18} /> Loading Verification Pipeline...
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    <AlertCircle size={28} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--text-muted)' }} />
+                    <div>No artisan verifications match the selected filters.</div>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((v) => {
+                  const hasAadhaar = checkHasAadhaar(v);
+                  const hasBank = checkHasBank(v);
+                  const isAadhaarVisible = Boolean(showAadhaarMap[v.id]);
+
+                  return (
+                    <tr key={v.id}>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {v.id.substring(0, 8)}...
+                      </td>
+
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              backgroundColor: 'var(--bg-surface-elevated)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: '700',
+                              color: 'var(--primary)',
+                              fontSize: '0.85rem',
+                              border: '1px solid var(--border-color)'
+                            }}
+                          >
+                            {v.artisan_name ? v.artisan_name.charAt(0).toUpperCase() : 'A'}
+                          </div>
                           <div>
-                            <span className="badge badge-purple badge-sm" style={{ marginTop: '2px' }}>
-                              {v.craft_type || 'Handicrafts'}
-                            </span>
-                            {v.cluster_name && (
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
-                                🏫 {v.cluster_name}
+                            <strong>{v.artisan_name}</strong>
+                            <div>
+                              <span className="badge badge-purple badge-sm" style={{ marginTop: '2px' }}>
+                                {v.craft_type || 'Handicrafts'}
                               </span>
-                            )}
+                              {v.cluster_name && (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
+                                  🏫 {v.cluster_name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Location & Contact */}
-                    <td>
-                      <div style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Phone size={12} style={{ color: 'var(--text-muted)' }} />
-                        <span>{v.phone_number}</span>
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <MapPin size={12} />
-                        <span>{[v.district, v.state].filter(Boolean).join(', ') || 'Uttar Pradesh'}</span>
-                      </div>
-                    </td>
-
-                    {/* Aadhaar Details */}
-                    <td>
-                      {hasAadhaar ? (
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', fontWeight: '600' }}>
-                              {formatMaskedAadhaar(v.aadhaar_number, isAadhaarVisible)}
-                            </span>
-                            <button
-                              onClick={() => toggleAadhaarVisibility(v.id)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--text-muted)',
-                                cursor: 'pointer',
-                                padding: '2px'
-                              }}
-                              title={isAadhaarVisible ? 'Mask Aadhaar' : 'Reveal Aadhaar'}
-                            >
-                              {isAadhaarVisible ? <EyeOff size={13} /> : <Eye size={13} />}
-                            </button>
-                          </div>
-
-                          <div style={{ marginTop: '4px' }}>
-                            {v.aadhaar_verified ? (
-                              <span className="badge badge-success badge-sm">✓ Aadhaar Verified</span>
-                            ) : (
-                              <span className="badge badge-purple badge-sm">🪪 Aadhaar Given (Pending)</span>
-                            )}
-                          </div>
+                      <td>
+                        <div style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Phone size={12} style={{ color: 'var(--text-muted)' }} />
+                          <span>{v.phone_number}</span>
                         </div>
-                      ) : (
-                        <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <MapPin size={12} />
+                          <span>{[v.district, v.state].filter(Boolean).join(', ') || 'Uttar Pradesh'}</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        {hasAadhaar ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', fontWeight: '600' }}>
+                                {formatMaskedAadhaar(v.aadhaar_number, isAadhaarVisible)}
+                              </span>
+                              <button
+                                onClick={() => toggleAadhaarVisibility(v.id)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                                title={isAadhaarVisible ? 'Mask Aadhaar' : 'Reveal Aadhaar'}
+                              >
+                                {isAadhaarVisible ? <EyeOff size={13} /> : <Eye size={13} />}
+                              </button>
+                            </div>
+                            <div style={{ marginTop: '4px' }}>
+                              {v.aadhaar_verified ? (
+                                <span className="badge badge-success badge-sm">✓ Aadhaar Verified</span>
+                              ) : (
+                                <span className="badge badge-purple badge-sm">🪪 Aadhaar Given</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
                           <span className="badge badge-sm" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)' }}>
                             ✕ Aadhaar Not Given
                           </span>
-                        </div>
-                      )}
-                    </td>
+                        )}
+                      </td>
 
-                    {/* Bank & Payout Details */}
-                    <td>
-                      {hasBank ? (
-                        <div>
-                          {v.bank_account && String(v.bank_account) !== '000000000000' && (
-                            <div style={{ fontSize: '0.78rem', fontFamily: 'monospace' }}>
-                              A/C: ••••{String(v.bank_account).slice(-4)}
-                            </div>
-                          )}
-                          {v.ifsc_code && String(v.ifsc_code) !== 'SBIN0000001' && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              IFSC: {v.ifsc_code}
-                            </div>
-                          )}
-                          {v.upi_id && !String(v.upi_id).endsWith('@upi') && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--info)' }}>
-                              UPI: {v.upi_id}
-                            </div>
-                          )}
-                          <div style={{ marginTop: '3px' }}>
-                            {v.bank_verified ? (
-                              <span className="badge badge-success badge-sm">✓ Bank Linked</span>
-                            ) : (
-                              <span className="badge badge-info badge-sm">🏦 Details Submitted</span>
+                      <td>
+                        {hasBank ? (
+                          <div>
+                            {v.bank_account && String(v.bank_account) !== '000000000000' && (
+                              <div style={{ fontSize: '0.78rem', fontFamily: 'monospace' }}>
+                                A/C: ••••{String(v.bank_account).slice(-4)}
+                              </div>
                             )}
+                            {v.ifsc_code && String(v.ifsc_code) !== 'SBIN0000001' && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                IFSC: {v.ifsc_code}
+                              </div>
+                            )}
+                            {v.upi_id && !String(v.upi_id).endsWith('@upi') && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--info)' }}>
+                                UPI: {v.upi_id}
+                              </div>
+                            )}
+                            <div style={{ marginTop: '3px' }}>
+                              {v.bank_verified ? (
+                                <span className="badge badge-success badge-sm">✓ Bank Linked</span>
+                              ) : (
+                                <span className="badge badge-info badge-sm">🏦 Details Submitted</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div>
+                        ) : (
                           <span className="badge badge-sm" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
                             ⏳ Bank Not Linked
                           </span>
-                        </div>
-                      )}
-                    </td>
+                        )}
+                      </td>
 
-                    {/* KYC Status */}
-                    <td>
-                      <span
-                        className={`badge ${
-                          v.status === 'Approved'
-                            ? 'badge-success'
-                            : v.status === 'Rejected'
-                            ? 'badge-danger'
-                            : 'badge-warning'
-                        }`}
-                      >
-                        {v.status}
-                      </span>
-                      {v.reviewed_by_name && (
-                        <div>
-                          <small className="text-muted" style={{ fontSize: '0.7rem' }}>
-                            By: {v.reviewed_by_name}
-                          </small>
-                        </div>
-                      )}
-                      {v.rejection_reason && (
-                        <div>
-                          <small style={{ color: 'var(--error)', fontSize: '0.7rem' }} title={v.rejection_reason}>
-                            Reason: {v.rejection_reason.substring(0, 24)}...
-                          </small>
-                        </div>
-                      )}
-                    </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            v.status === 'Approved'
+                              ? 'badge-success'
+                              : v.status === 'Rejected'
+                              ? 'badge-danger'
+                              : 'badge-warning'
+                          }`}
+                        >
+                          {v.status}
+                        </span>
+                        {v.reviewed_by_name && (
+                          <div>
+                            <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                              By: {v.reviewed_by_name}
+                            </small>
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Actions */}
-                    <td>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {v.status === 'Pending' ? (
-                          <>
-                            <button
-                              className="btn btn-success btn-sm"
-                              disabled={actionLoadingId === v.id}
-                              onClick={() => handleReview(v.id, 'Approved')}
-                              style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                            >
-                              Approve
-                            </button>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          {v.status === 'Pending' ? (
+                            <>
+                              <button
+                                className="btn btn-success btn-sm"
+                                disabled={actionLoadingId === v.id}
+                                onClick={() => handleReview(v.id, 'Approved')}
+                                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                disabled={actionLoadingId === v.id}
+                                onClick={() => handleReview(v.id, 'Rejected')}
+                                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : (
                             <button
                               className="btn btn-secondary btn-sm"
-                              disabled={actionLoadingId === v.id}
-                              onClick={() => handleReview(v.id, 'Rejected')}
-                              style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                              onClick={() => setSelectedDossier(v)}
+                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                             >
-                              Reject
+                              View Details
                             </button>
-                          </>
-                        ) : (
+                          )}
                           <button
-                            className="btn btn-secondary btn-sm"
                             onClick={() => setSelectedDossier(v)}
-                            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            title="View Full KYC Dossier"
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
                           >
-                            View Details
+                            <FileText size={15} />
                           </button>
-                        )}
-                        <button
-                          onClick={() => setSelectedDossier(v)}
-                          title="View Full KYC Dossier"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-muted)',
-                            cursor: 'pointer',
-                            padding: '2px'
-                          }}
-                        >
-                          <FileText size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Artisan KYC Full Dossier Modal */}
+      {/* Artisan KYC Full Dossier Modal (Mobile & Desktop Responsive) */}
       {selectedDossier && (
         <div
           style={{
@@ -852,7 +948,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1000,
-            padding: '20px'
+            padding: '16px'
           }}
           onClick={() => setSelectedDossier(null)}
         >
@@ -861,21 +957,23 @@ export default function ArtisanVerifications({ onActionComplete }) {
               backgroundColor: 'var(--bg-surface)',
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--border-radius-lg)',
-              maxWidth: '540px',
+              maxWidth: '520px',
               width: '100%',
-              padding: '24px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '20px',
               boxShadow: 'var(--shadow-lg)',
               position: 'relative'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div
                   style={{
-                    width: '40px',
-                    height: '40px',
+                    width: '38px',
+                    height: '38px',
                     borderRadius: '50%',
                     backgroundColor: 'rgba(230, 126, 34, 0.15)',
                     color: 'var(--primary)',
@@ -888,9 +986,9 @@ export default function ArtisanVerifications({ onActionComplete }) {
                   {selectedDossier.artisan_name ? selectedDossier.artisan_name.charAt(0).toUpperCase() : 'A'}
                 </div>
                 <div>
-                  <h4 style={{ margin: 0 }}>{selectedDossier.artisan_name}</h4>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    KYC Dossier ID: {selectedDossier.id}
+                  <h4 style={{ margin: 0, fontSize: '1.05rem' }}>{selectedDossier.artisan_name}</h4>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    KYC Dossier ID: {selectedDossier.id.substring(0, 8)}...
                   </span>
                 </div>
               </div>
@@ -901,7 +999,8 @@ export default function ArtisanVerifications({ onActionComplete }) {
                   border: 'none',
                   color: 'var(--text-muted)',
                   cursor: 'pointer',
-                  fontSize: '1.2rem'
+                  fontSize: '1.2rem',
+                  padding: '4px 8px'
                 }}
               >
                 ✕
@@ -909,19 +1008,19 @@ export default function ArtisanVerifications({ onActionComplete }) {
             </div>
 
             {/* Modal Body */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
               <div
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
-                  padding: '12px 14px',
+                  padding: '12px',
                   borderRadius: 'var(--border-radius-sm)',
                   border: '1px solid var(--border-color)'
                 }}
               >
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
                   Artisan Information
                 </div>
-                <div style={{ fontSize: '0.85rem' }}>
+                <div style={{ fontSize: '0.84rem' }}>
                   <div><strong>Craft:</strong> {selectedDossier.craft_type || 'Handicrafts'}</div>
                   <div><strong>Cluster:</strong> {selectedDossier.cluster_name || 'Independent Artisan'}</div>
                   <div><strong>Phone:</strong> {selectedDossier.phone_number || 'N/A'}</div>
@@ -933,20 +1032,18 @@ export default function ArtisanVerifications({ onActionComplete }) {
               <div
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
-                  padding: '12px 14px',
+                  padding: '12px',
                   borderRadius: 'var(--border-radius-sm)',
                   border: '1px solid var(--border-color)'
                 }}
               >
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
                   Aadhaar Credential Verification
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '0.9rem' }}>
-                      {selectedDossier.aadhaar_number || 'Not Provided'}
-                    </span>
-                  </div>
+                  <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '0.88rem' }}>
+                    {selectedDossier.aadhaar_number || 'Not Provided'}
+                  </span>
                   <div>
                     {selectedDossier.aadhaar_verified ? (
                       <span className="badge badge-success badge-sm">✓ Verified</span>
@@ -962,15 +1059,15 @@ export default function ArtisanVerifications({ onActionComplete }) {
               <div
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
-                  padding: '12px 14px',
+                  padding: '12px',
                   borderRadius: 'var(--border-radius-sm)',
                   border: '1px solid var(--border-color)'
                 }}
               >
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
                   Bank & Payout Gateway
                 </div>
-                <div style={{ fontSize: '0.85rem' }}>
+                <div style={{ fontSize: '0.84rem' }}>
                   <div><strong>Account No:</strong> {selectedDossier.bank_account || 'N/A'}</div>
                   <div><strong>IFSC Code:</strong> {selectedDossier.ifsc_code || 'N/A'}</div>
                   <div><strong>UPI ID:</strong> {selectedDossier.upi_id || 'N/A'}</div>
@@ -980,12 +1077,12 @@ export default function ArtisanVerifications({ onActionComplete }) {
               <div
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
-                  padding: '12px 14px',
+                  padding: '12px',
                   borderRadius: 'var(--border-radius-sm)',
                   border: '1px solid var(--border-color)'
                 }}
               >
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
                   Verification Status
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1001,13 +1098,13 @@ export default function ArtisanVerifications({ onActionComplete }) {
                     {selectedDossier.status}
                   </span>
                   {selectedDossier.submitted_at && (
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       Submitted: {new Date(selectedDossier.submitted_at).toLocaleDateString()}
                     </span>
                   )}
                 </div>
                 {selectedDossier.rejection_reason && (
-                  <div style={{ marginTop: '6px', fontSize: '0.8rem', color: 'var(--error)' }}>
+                  <div style={{ marginTop: '6px', fontSize: '0.78rem', color: 'var(--error)' }}>
                     <strong>Rejection Reason:</strong> {selectedDossier.rejection_reason}
                   </div>
                 )}
@@ -1015,7 +1112,7 @@ export default function ArtisanVerifications({ onActionComplete }) {
             </div>
 
             {/* Modal Actions */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDossier(null)}>
                 Close
               </button>
