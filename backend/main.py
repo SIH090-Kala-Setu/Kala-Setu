@@ -66,6 +66,7 @@ class UserRegister(BaseModel):
     password: str
     role: str  # Admin, Artisan, Buyer, Aggregator
     region: Optional[str] = None
+    district: Optional[str] = None
     preferred_lang: Optional[str] = "Hindi"
     craft_type: Optional[str] = None
     aadhaar_number: Optional[str] = None
@@ -232,6 +233,9 @@ class ExhibitionResponse(BaseModel):
     end_date: datetime.date
     created_by: Optional[Union[uuid.UUID, str]] = None
     is_active: bool
+    # Per-user registration fields (populated when current_user is available)
+    is_registered: bool = False
+    reg_status: Optional[str] = None  # "Pending", "Approved", "Rejected"
     class Config:
         from_attributes = True
 
@@ -499,7 +503,7 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
         role=user.role,
         preferred_language=user.preferred_lang,
         state=user.region or "Uttar Pradesh",
-        district="Varanasi",
+        district=user.district or "Varanasi",
         is_verified=is_verified
     )
     
@@ -768,21 +772,28 @@ def get_notifications(
 
 @app.post("/notifications", response_model=NotificationResponse)
 def create_notification(notification: NotificationCreate, db: Session = Depends(get_db)):
-    # Link notification to first user or all users in PostgreSQL
-    user = db.query(models.User).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="No users exist in DB to target.")
-    new_noti = models.Notification(
-        user_id=user.id,
-        title=notification.title,
-        body=notification.message,
-        type="System"
-    )
-    db.add(new_noti)
-        
+    # Broadcast to all users matching target_role (or all users if "All")
+    target_role = notification.target_role or "All"
+    query = db.query(models.User)
+    if target_role != "All":
+        query = query.filter(models.User.role == target_role)
+    users = query.all()
+    if not users:
+        raise HTTPException(status_code=400, detail="No users found for the target role.")
+    first_noti = None
+    for user in users:
+        noti = models.Notification(
+            user_id=user.id,
+            title=notification.title,
+            body=notification.message,
+            type="System"
+        )
+        db.add(noti)
+        if first_noti is None:
+            first_noti = noti
     db.commit()
-    db.refresh(new_noti)
-    return map_notification_to_response(new_noti)
+    db.refresh(first_noti)
+    return map_notification_to_response(first_noti)
 
 @app.get("/admin/users", response_model=List[UserResponse])
 def get_all_users(db: Session = Depends(get_db)):
@@ -1210,9 +1221,32 @@ def create_exhibition(
     return new_exhib
 
 @app.get("/admin/exhibitions", response_model=List[ExhibitionResponse])
-def get_exhibitions(db: Session = Depends(get_db)):
+def get_exhibitions(
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_current_user)
+):
     exhibs = db.query(models.Exhibition).all()
-    return exhibs
+    result = []
+    for ex in exhibs:
+        reg = None
+        if current_user and current_user.role == "Artisan":
+            reg = db.query(models.ExhibitionRegistration).filter(
+                models.ExhibitionRegistration.exhibition_id == ex.id,
+                models.ExhibitionRegistration.artisan_id == current_user.id
+            ).first()
+        result.append(ExhibitionResponse(
+            id=ex.id,
+            name=ex.name,
+            location=ex.location,
+            status=ex.status,
+            start_date=ex.start_date,
+            end_date=ex.end_date,
+            created_by=ex.created_by,
+            is_active=ex.is_active,
+            is_registered=reg is not None,
+            reg_status=reg.status if reg else None,
+        ))
+    return result
 
 @app.post("/admin/exhibitions/{exhibition_id}/register", response_model=ExhibitionRegistrationResponse)
 def register_for_exhibition(
