@@ -59,7 +59,18 @@ FCM_SERVER_KEY = os.getenv("FCM_SERVER_KEY", "")
 FCM_URL = "https://fcm.googleapis.com/fcm/send"
 
 
-def _send_fcm(token: str, title: str, body: str, data: dict = None):
+def _clear_fcm_token(db: Session, token: str):
+    """Null out a stale FCM token so we stop pushing to it."""
+    try:
+        db.query(models.User).filter(models.User.fcm_token == token).update(
+            {"fcm_token": None}, synchronize_session=False
+        )
+        db.flush()
+        logger.info(f"🗑️ Cleared stale FCM token: {token[:12]}...")
+    except Exception as e:
+        logger.warning(f"Failed to clear stale FCM token: {e}")
+
+def _send_fcm(token: str, title: str, body: str, data: dict = None, db: Session = None):
     """Fire-and-forget FCM push to a single device token using Firebase Admin v1 or HTTP legacy."""
     if not token:
         return
@@ -77,7 +88,12 @@ def _send_fcm(token: str, title: str, body: str, data: dict = None):
             logger.info(f"✅ FCM v1 push sent successfully: {response}")
             return
         except Exception as e:
+            err_str = str(e)
             logger.warning(f"FCM v1 push send failed: {e}")
+            # Clear stale token so we don't keep retrying it
+            if any(x in err_str for x in ("NotRegistered", "InvalidRegistration", "UNREGISTERED")) and db:
+                _clear_fcm_token(db, token)
+            return
 
     # Method 2: Legacy FCM HTTP API (if FCM_SERVER_KEY is set)
     if FCM_SERVER_KEY:
@@ -94,7 +110,14 @@ def _send_fcm(token: str, title: str, body: str, data: dict = None):
             }
             resp = requests.post(FCM_URL, json=payload, headers=headers, timeout=5)
             if resp.status_code == 200:
-                logger.info(f"✅ FCM legacy push sent to {token[:12]}...: {title}")
+                result = resp.json()
+                # Check for NotRegistered in legacy response
+                if result.get("failure") and db:
+                    results = result.get("results", [])
+                    if results and results[0].get("error") in ("NotRegistered", "InvalidRegistration"):
+                        _clear_fcm_token(db, token)
+                else:
+                    logger.info(f"✅ FCM legacy push sent to {token[:12]}...: {title}")
             else:
                 logger.warning(f"FCM legacy send failed [{resp.status_code}]: {resp.text}")
         except Exception as e:
@@ -105,7 +128,7 @@ def _send_fcm(token: str, title: str, body: str, data: dict = None):
     logger.info(f"🔔 [FCM Push Simulated] To: {token[:12]}... | Title: {title} | Body: {body}")
 
 
-def _send_fcm_multicast(tokens: List[str], title: str, body: str, data: dict = None):
+def _send_fcm_multicast(tokens: List[str], title: str, body: str, data: dict = None, db: Session = None):
     """Send FCM push to multiple tokens in batches."""
     valid_tokens = [t for t in tokens if t]
     if not valid_tokens:
@@ -114,7 +137,7 @@ def _send_fcm_multicast(tokens: List[str], title: str, body: str, data: dict = N
     # Method 1: Modern Firebase Admin SDK Multicast
     if _firebase_initialized:
         str_data = {k: str(v) for k, v in (data or {}).items()}
-        for i in range(0, len(valid_tokens), 500):  # FCM v1 supports up to 500 per batch
+        for i in range(0, len(valid_tokens), 500):
             batch = valid_tokens[i:i + 500]
             try:
                 multicast_msg = messaging.MulticastMessage(
@@ -124,6 +147,13 @@ def _send_fcm_multicast(tokens: List[str], title: str, body: str, data: dict = N
                 )
                 br = messaging.send_each_for_multicast(multicast_msg)
                 logger.info(f"✅ FCM v1 multicast sent: {br.success_count} success, {br.failure_count} failed")
+                # Clear stale tokens from failed responses
+                if db and br.failure_count:
+                    for idx, resp in enumerate(br.responses):
+                        if not resp.success and resp.exception:
+                            err = str(resp.exception)
+                            if any(x in err for x in ("NotRegistered", "InvalidRegistration", "UNREGISTERED")):
+                                _clear_fcm_token(db, batch[idx])
             except Exception as e:
                 logger.warning(f"FCM v1 multicast failed: {e}")
         return
@@ -180,7 +210,7 @@ def notify(
 
     user = db.query(models.User).filter(models.User.id == uid).first()
     if user and user.fcm_token:
-        _send_fcm(user.fcm_token, title, body, data or {"type": notif_type})
+        _send_fcm(user.fcm_token, title, body, data or {"type": notif_type}, db=db)
 
 
 def notify_users(
@@ -211,7 +241,7 @@ def notify_users(
             tokens.append(user.fcm_token)
     db.flush()
     if tokens:
-        _send_fcm_multicast(tokens, title, body, data or {"type": notif_type})
+        _send_fcm_multicast(tokens, title, body, data or {"type": notif_type}, db=db)
 
 
 def notify_role(
@@ -239,7 +269,7 @@ def notify_role(
             tokens.append(user.fcm_token)
     db.flush()
     if tokens:
-        _send_fcm_multicast(tokens, title, body, data or {"type": notif_type})
+        _send_fcm_multicast(tokens, title, body, data or {"type": notif_type}, db=db)
 
 
 def notify_all(
@@ -266,5 +296,5 @@ def notify_all(
             tokens.append(user.fcm_token)
     db.flush()
     if tokens:
-        _send_fcm_multicast(tokens, title, body, data or {"type": notif_type})
+        _send_fcm_multicast(tokens, title, body, data or {"type": notif_type}, db=db)
 
