@@ -14,6 +14,7 @@ backend/.venv/
 !.env.example
 backend/.env
 backend/.env.*
+!backend/.env.example
 frontend/.env
 frontend/.env.*
 *firebase-credentials*.json
@@ -22,6 +23,7 @@ backend/firebase-credentials.json
 backend/serviceAccountKey.json
 google-services.json
 */google-services.json
+docs/
 
 # Python Cache & Bytecode
 __pycache__/
