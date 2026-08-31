@@ -809,17 +809,50 @@ erDiagram
 
 ## 💰 Dynamic Pricing & Fair Wage Engine
 
-The pricing assistant uses a **cost-plus fair wage formula** combined with **craft value multipliers**:
+The pricing assistant uses a **multi-signal pipeline**: Gemini Vision image analysis → platform DB market benchmarking → cost-plus fair wage formula with complexity multipliers.
 
-$$\text{Fair Labor Wage} = \text{Manufacturing Hours} \times ₹150/\text{hr}$$
+### Pipeline Overview
 
-$$\text{Min. Production Floor} = \text{Raw Material Cost} + \text{Fair Labor Wage}$$
+```
+Product Image + Description + Material Cost
+        │
+        ▼
+┌─────────────────────────────┐
+│  Gemini Vision Analysis     │  → complexity: simple / moderate / intricate
+│  (gemini-2.5-flash-lite)    │  → quality_signals, craft_keywords
+└─────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────┐
+│  Platform DB Benchmark      │  SELECT AVG/MIN/MAX(base_price)
+│  (PostgreSQL /products)     │  WHERE craft_category ILIKE '%{category}%'
+│                             │  AND status = 'Active'
+└─────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────┐
+│  Price Calculation          │  Cost-plus + complexity mult + market floor
+└─────────────────────────────┘
+        │
+        ▼
+  Retail · B2B · Min · Market Range · Rationale
+```
 
-$$\text{Recommended Retail Price (D2C)} = \text{Min. Production Floor} \times \text{Craft Multiplier}$$
+### Pricing Formulas
 
-$$\text{B2B Wholesale Price} = \text{Recommended Retail Price} \times 0.85\quad (\text{15\% Bulk Discount})$$
+$$\text{Labor Cost} = \text{Manufacturing Hours} \times ₹150/\text{hr}$$
 
-$$\text{Market Range} = [\text{Retail Price} \times 0.90] \quad\text{to}\quad [\text{Retail Price} \times 1.40]$$
+$$\text{Production Cost} = \text{Raw Material Cost} + \text{Labor Cost}$$
+
+$$\text{Cost-Plus Price} = \text{Production Cost} \times \text{Craft Multiplier} \times \text{Complexity Multiplier}$$
+
+$$\text{Market Floor} = \text{Platform DB Avg Price} \times 0.85$$
+
+$$\text{Suggested Retail} = \max(\text{Cost-Plus Price},\ \text{Market Floor})$$
+
+$$\text{B2B Wholesale} = \text{Suggested Retail} \times 0.75 \quad (\text{25\% bulk discount})$$
+
+$$\text{Min. Breakeven} = \text{Production Cost} \times 1.15 \quad (\text{15\% above breakeven})$$
 
 ### Craft Multiplier Table
 
@@ -831,11 +864,50 @@ $$\text{Market Range} = [\text{Retail Price} \times 0.90] \quad\text{to}\quad [\
 | Handicrafts & Woodwork | **1.4×** | Carving time, seasoning & decorative demand |
 | Clay & Blue Pottery | **1.3×** | Clay volume, kiln firing cycles & daily utility |
 
+### Complexity Multiplier Table (Gemini Vision)
+
+Gemini Vision analyzes the uploaded product image and assigns a complexity tier:
+
+| Complexity | Multiplier | Detection Criteria |
+|:---|:---|:---|
+| **Simple** | **1.0×** | Basic shape, single color, minimal detail |
+| **Moderate** | **1.3×** | Some decorative elements, mixed materials, moderate skill |
+| **Intricate** | **1.6×** | Fine detail, multi-step process, high skill (e.g. Patola weaving, Zardozi embroidery) |
+
+### Platform DB Market Benchmark
+
+The `/suggest-price` endpoint queries the live product database for comparable active listings:
+
+```sql
+SELECT AVG(base_price), MIN(base_price), MAX(base_price), COUNT(id)
+FROM products
+WHERE status = 'Active'
+  AND craft_category ILIKE '%{category}%'
+```
+
+- If platform data exists: suggested price is floored at **85% of the platform average** so artisans never undercut the market
+- If no comparable products exist yet: falls back to pure cost-plus formula
+- The market range (min → avg → max) is returned and displayed as a **visual range bar** in the Flutter app
+
 ### Living Wage Benchmark
 
 The **₹150/hr (₹1,200/day)** benchmark is derived from:
 - MNREGA 2024 floor wage: ₹267/day → skilled handicraft premium: ~4.5× unskilled rural rate
 - PM Vishwakarma Yojana recognized artisan skill compensation frameworks
+
+### Response Fields
+
+| Field | Description |
+|:---|:---|
+| `suggested_retail_price` | Optimal D2C retail price |
+| `suggested_b2b_price` | Wholesale price (75% of retail) |
+| `min_price` | Minimum breakeven (production cost × 1.15) |
+| `market_avg` | Platform DB average for comparable products |
+| `market_min` | Lowest comparable product price on platform |
+| `market_max` | Highest comparable product price on platform |
+| `complexity` | Gemini Vision detected complexity tier |
+| `competitor_range` | Human-readable price range string |
+| `pricing_strategy_notes` | Gemini-generated rationale with market context |
 
 ---
 
