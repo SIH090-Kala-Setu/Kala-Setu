@@ -167,20 +167,17 @@ class ImageProcessor:
 
             enhanced_bgr = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
 
-            # ── 5. Recompose: write enhanced pixels ONLY where opaque ─────────
-            #    Transparent areas remain exactly 0 — no halo contamination.
+            # ── 5. Recompose onto pure white studio background ───────────────
             result_bgr = bgr_uint8.copy()
             result_bgr[opaque_mask] = enhanced_bgr[opaque_mask]
 
-            enhanced_square = cv2.merge((
-                result_bgr[:, :, 0],
-                result_bgr[:, :, 1],
-                result_bgr[:, :, 2],
-                alpha_channel
-            ))
+            # Alpha blend for smooth, anti-aliased edges over pure white (255, 255, 255)
+            alpha_norm = (alpha_channel.astype(np.float32) / 255.0)[:, :, np.newaxis]
+            white_bg = np.ones_like(result_bgr, dtype=np.float32) * 255.0
+            composited_white = (result_bgr.astype(np.float32) * alpha_norm + white_bg * (1.0 - alpha_norm)).astype(np.uint8)
 
             # ── 6. Resize to standard 800×800 e-commerce format ─────────────
-            final_img = cv2.resize(enhanced_square, (800, 800), interpolation=cv2.INTER_LANCZOS4)
+            final_img = cv2.resize(composited_white, (800, 800), interpolation=cv2.INTER_LANCZOS4)
 
             is_success, buffer = cv2.imencode(".png", final_img)
             if not is_success:

@@ -463,6 +463,29 @@ async def generate_catalog(
             detail="Either a regional audio voice note or a text description must be provided."
         )
 
+@app.post("/catalog/vision", response_model=ProductCatalog, summary="Multimodal Vision Catalog Generator via Groq Qwen 3.8")
+async def generate_catalog_from_image_endpoint(
+    image: UploadFile = File(...),
+    lang: str = Form("Hindi")
+):
+    """
+    Analyzes the product image using Groq's multimodal Qwen 3.8 model (qwen/qwen3.8-27b)
+    to automatically generate English and Hindi titles, descriptions, heritage story, SEO tags,
+    craft category, estimated labor hours, and raw material costs.
+    """
+    try:
+        image_bytes = await image.read()
+        if not image_bytes or len(image_bytes) < 10:
+            raise HTTPException(status_code=400, detail="Uploaded image file is empty.")
+        catalog = cataloger_service.generate_catalog_from_image(image_bytes, lang=lang)
+        return catalog
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Catalog vision generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Vision cataloging failed: {str(e)}")
+
+
 @app.post("/suggest-price", response_model=PriceBreakdown, summary="Dynamic Pricing Assistant")
 async def suggest_price(
     category: str = Form(...),

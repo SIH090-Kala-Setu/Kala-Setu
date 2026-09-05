@@ -21,21 +21,28 @@ except ImportError:
     Groq = None
 
 class ProductCatalog(BaseModel):
-    detected_language: str = Field(description="The regional language detected in the input audio or text.")
-    raw_transcription: str = Field(description="The verbatim transcription of what the artisan said.")
+    detected_language: str = Field(default="Hindi", description="The regional language detected in the input audio or text.")
+    raw_transcription: Optional[str] = Field(default="", description="The verbatim transcription of what the artisan said.")
     
     # English Listing
-    title_en: str = Field(description="A professional, catchy e-commerce product title in English.")
-    description_en: str = Field(description="An SEO-friendly, engaging product description in English highlighting craftsmanship.")
+    title_en: str = Field(default="", description="A professional, catchy e-commerce product title in English.")
+    description_en: str = Field(default="", description="An SEO-friendly, engaging product description in English highlighting craftsmanship.")
     
     # Hindi Listing
-    title_hi: str = Field(description="A professional, catchy e-commerce product title in Hindi.")
-    description_hi: str = Field(description="An SEO-friendly, engaging product description in Hindi highlighting craftsmanship.")
+    title_hi: str = Field(default="", description="A professional, catchy e-commerce product title in Hindi.")
+    description_hi: str = Field(default="", description="An SEO-friendly, engaging product description in Hindi highlighting craftsmanship.")
+    
+    # Heritage Story
+    story: Optional[str] = Field(default="", description="A compelling artisan craft heritage story.")
     
     # Metadata
-    materials: List[str] = Field(description="List of raw materials detected (e.g., silk, terracotta, bamboo).")
-    tags: List[str] = Field(description="List of 5-8 SEO tags or keywords for search optimization.")
-    category: str = Field(description="Best fitting product category (e.g., Textiles, Handicrafts, Pottery, Jewelry).")
+    materials: List[str] = Field(default_factory=list, description="List of raw materials detected (e.g., silk, terracotta, bamboo).")
+    tags: List[str] = Field(default_factory=list, description="List of 5-8 SEO tags or keywords for search optimization.")
+    category: str = Field(default="Handicrafts", description="Best fitting product category (e.g., Textiles, Handicrafts, Pottery, Jewelry).")
+    
+    # Economics estimation
+    estimated_labor_hours: Optional[float] = Field(default=6.0, description="Estimated labor hours required to create the craft.")
+    estimated_material_cost: Optional[float] = Field(default=450.0, description="Estimated raw material cost in INR.")
 
 class Cataloger:
     def __init__(self):
@@ -292,7 +299,104 @@ class Cataloger:
             description_en=desc_en,
             title_hi=title_hi,
             description_hi=desc_hi,
+            story=f"Preserving generational handmade craftsmanship, each piece represents indigenous cultural heritage crafted with authentic local materials.",
             materials=materials,
             tags=tags,
-            category=category
+            category=category,
+            estimated_labor_hours=8.0 if category in ["Textiles", "Woodwork", "Paintings & Art"] else 4.0,
+            estimated_material_cost=650.0 if category == "Textiles" else 350.0,
         )
+
+    def generate_catalog_from_image(self, image_bytes: bytes, lang: str = "Hindi") -> ProductCatalog:
+        """
+        Analyzes the artisan product image using Groq's multimodal Qwen 3.8 model (qwen/qwen3.8-27b)
+        to extract craft details, materials, heritage story, and generate bilingual listings.
+        """
+        import base64
+
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        prompt = f"""
+        You are an expert master craft curator and business manager for rural Indian artisans.
+        Analyze this handicraft product image in detail and create a comprehensive, highly marketable product catalog.
+        
+        Extract and generate:
+        1. detected_language: "{lang}"
+        2. title_en: A professional, catchy e-commerce title in English.
+        3. description_en: An evocative, SEO-rich product description in English highlighting craftsmanship and artisanal value.
+        4. title_hi: High-quality professional product title in Hindi.
+        5. description_hi: Beautiful, engaging product description in Hindi highlighting the craft tradition.
+        6. story: A compelling 2-3 sentence artisan heritage story about the cultural origins and generational legacy of this craft.
+        7. category: Best matching craft category (e.g. Textiles, Handicrafts, Pottery, Jewelry, Paintings & Art, Woodwork).
+        8. materials: List of 2-4 primary raw materials visible or used in this craft (e.g., ["Mulberry Silk", "Zari Thread"]).
+        9. tags: List of 5-8 SEO keywords/tags for marketplace search optimization.
+        10. estimated_labor_hours: Realistic number of hours to handcraft this item (float, e.g. 6.0, 10.0, 16.0).
+        11. estimated_material_cost: Realistic estimated raw material cost in INR (float, e.g. 350.0, 600.0).
+
+        Respond strictly in valid JSON format with keys:
+        {{
+            "detected_language": "{lang}",
+            "title_en": "...",
+            "description_en": "...",
+            "title_hi": "...",
+            "description_hi": "...",
+            "story": "...",
+            "category": "...",
+            "materials": ["..."],
+            "tags": ["..."],
+            "estimated_labor_hours": 8.0,
+            "estimated_material_cost": 450.0
+        }}
+        """
+
+        # --- TIER 1: Try Groq Qwen 3.8 Multimodal ---
+        if self.groq_client:
+            try:
+                completion = self.groq_client.chat.completions.create(
+                    model="qwen/qwen3.8-27b",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a master craft curator and e-commerce specialist for Indian rural artisans. Always respond strictly in valid JSON format without markdown code fences."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}
+                                }
+                            ]
+                        }
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                )
+                data = json.loads(completion.choices[0].message.content)
+                data["detected_language"] = data.get("detected_language") or lang
+                data["raw_transcription"] = data.get("raw_transcription") or f"Visual analysis of handcrafted {data.get('category', 'artisan product')}"
+                return ProductCatalog(**data)
+            except Exception as e:
+                print(f"[Cataloger] Groq Qwen3.8 vision error: {e}. Trying Gemini vision backup...")
+
+        # --- TIER 2: Try Gemini Multimodal Backup ---
+        if self.gemini_client:
+            try:
+                response = self.gemini_client.models.generate_content(
+                    model=self.gemini_model,
+                    contents=[
+                        types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                        prompt
+                    ],
+                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
+                data = json.loads(response.text)
+                data["detected_language"] = data.get("detected_language") or lang
+                data["raw_transcription"] = data.get("raw_transcription") or f"Visual analysis of handcrafted {data.get('category', 'artisan product')}"
+                return ProductCatalog(**data)
+            except Exception as e:
+                print(f"[Cataloger] Gemini vision error: {e}")
+
+        # --- TIER 3: Local Smart Fallback ---
+        return self._generate_smart_catalog("Handmade traditional artisan craft", regional_lang=lang)
