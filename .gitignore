@@ -71,3 +71,6 @@ Thumbs.db
 
 # Model weights and temporary AI caches
 .rembg/
+
+KalasetuV2/
+ML/raw_datasets/
