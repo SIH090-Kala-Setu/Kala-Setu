@@ -56,6 +56,8 @@ def get_artisan_analytics(artisan_profile_id: str, db: Session) -> dict:
     product_stats.sort(key=lambda x: x["inquiry_count"], reverse=True)
 
     total_orders = sum(p["completed_orders"] for p in product_stats)
+    active_listings = sum(1 for p in products if p.status == "Active")
+    pending_listings = sum(1 for p in products if p.status == "Pending Review")
 
     return {
         "total_listings": len(products),
