@@ -14,20 +14,36 @@ SMS_GATEWAY_PASSWORD = os.getenv("SMS_GATEWAY_PASSWORD", "")
 # In production, use Redis or DB
 otp_store = {}
 
+def normalize_phone(phone: str) -> str:
+    cleaned = phone.replace(" ", "").replace("-", "").strip()
+    if cleaned.startswith("+91"):
+        cleaned = cleaned[3:]
+    elif cleaned.startswith("91") and len(cleaned) == 12:
+        cleaned = cleaned[2:]
+    elif cleaned.startswith("0") and len(cleaned) == 11:
+        cleaned = cleaned[1:]
+    return cleaned
+
 def generate_otp(phone: str) -> str:
     # Generate 6 digit OTP
+    norm = normalize_phone(phone)
     otp = str(random.randint(100000, 999999))
+    otp_store[norm] = otp
     otp_store[phone] = otp
     return otp
 
 def verify_otp(phone: str, otp: str) -> bool:
-    # Check if OTP matches
-    stored_otp = otp_store.get(phone)
-    if stored_otp and stored_otp == otp:
-        del otp_store[phone]  # OTP can only be used once
-        return True
     # Allow a universal test OTP
     if otp == "123456":
+        return True
+    norm = normalize_phone(phone)
+    # Check if OTP matches either normalized or raw phone
+    stored_otp = otp_store.get(norm) or otp_store.get(phone)
+    if stored_otp and stored_otp == otp:
+        if norm in otp_store:
+            del otp_store[norm]
+        if phone in otp_store:
+            del otp_store[phone]
         return True
     return False
 

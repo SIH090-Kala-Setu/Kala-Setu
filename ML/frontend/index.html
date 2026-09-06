@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KalaSetu Pricing Tester</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #f97316;
+      --primary-hover: #ea580c;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    h1, h2, h3 { margin-bottom: 12px; }
+    h1 { font-size: 1.25rem; color: var(--primary); grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
+    h2 { font-size: 1rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #334155;
+      color: var(--muted);
+    }
+    .badge.online { background: #14532d; color: var(--success); }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .preset-btn {
+      background: #334155;
+      color: var(--text);
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .preset-btn:hover { background: var(--primary); }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .btn-submit:hover { background: var(--primary-hover); }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Results */
+    .price-box {
+      text-align: center;
+      padding: 20px;
+      background: #0f172a;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .price-val {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .price-range {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .tag-success { background: #14532d; color: var(--success); }
+    .tag-error { background: #7f1d1d; color: var(--error); }
+
+    .shap-list {
+      margin-top: 12px;
+      font-size: 0.8rem;
+    }
+
+    .shap-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      color: var(--muted);
+    }
+    .shap-item span.pos { color: var(--success); }
+    .shap-item span.neg { color: var(--error); }
+
+    pre {
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      overflow-x: auto;
+      max-height: 180px;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+
+    .status-msg {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      display: none;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .status-msg.error { display: block; background: #7f1d1d; color: #fca5a5; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>
+      <span>KalaSetu Pricing Tester</span>
+      <span class="badge" id="apiStatus">API: Checking...</span>
+    </h1>
+
+    <!-- Left: Input Form -->
+    <div class="card">
+      <h2>Artisan Product Input</h2>
+      
+      <div style="margin: 10px 0 6px 0; font-size: 0.75rem; color: var(--muted);">Quick Presets:</div>
+      <div class="presets">
+        <button type="button" class="preset-btn" onclick="loadPreset('silk')">Silk Saree</button>
+        <button type="button" class="preset-btn" onclick="loadPreset('pottery')">Pottery</button>
+        <button type="button" class="preset-btn" onclick="loadPreset('jewelry')">Silver Jewelry</button>
+        <button type="button" class="preset-btn" onclick="loadPreset('bulk')">B2B Wholesale</button>
+      </div>
+
+      <form id="priceForm">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Craft Category</label>
+            <select id="craft_category" required>
+              <option value="Textiles">Textiles</option>
+              <option value="Pottery">Pottery</option>
+              <option value="Jewelry">Jewelry</option>
+              <option value="Folk Painting">Folk Painting</option>
+              <option value="Wood Inlay">Wood Inlay</option>
+              <option value="Metalcraft">Metalcraft</option>
+              <option value="Tribal Craft">Tribal Craft</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Material Type</label>
+            <input type="text" id="material_type" value="Silk" required />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>State / Region</label>
+            <input type="text" id="region_state" value="Uttar Pradesh" required />
+          </div>
+          <div class="form-group">
+            <label>Experience (Years)</label>
+            <input type="number" id="artisan_experience_yrs" value="15" min="0" required />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Raw Material Cost (₹)</label>
+            <input type="number" id="raw_material_cost_inr" value="800" min="1" required />
+          </div>
+          <div class="form-group">
+            <label>State Min Wage / Day (₹)</label>
+            <input type="number" id="state_min_wage_inr" value="500" min="1" required />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Labor Hours</label>
+            <input type="number" id="labor_hours_estimated" value="24" min="0.5" step="0.5" required />
+          </div>
+          <div class="form-group">
+            <label>Complexity (1-5)</label>
+            <select id="product_complexity">
+              <option value="1">1 - Simple</option>
+              <option value="2">2 - Low</option>
+              <option value="3">3 - Medium</option>
+              <option value="4" selected>4 - High</option>
+              <option value="5">5 - Masterpiece</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Order Quantity</label>
+            <input type="number" id="bulk_order_qty" value="1" min="1" required />
+          </div>
+          <div class="form-group">
+            <label>Season Quarter</label>
+            <select id="season_quarter">
+              <option value="1">Q1 (Jan-Mar)</option>
+              <option value="2">Q2 (Apr-Jun)</option>
+              <option value="3">Q3 (Jul-Sep)</option>
+              <option value="4" selected>Q4 (Festive)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>GI Certified?</label>
+            <select id="gi_tag_certified">
+              <option value="true" selected>Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Views / Inquiries (30d)</label>
+            <div style="display: flex; gap: 4px;">
+              <input type="number" id="listing_views_30d" value="300" placeholder="Views" />
+              <input type="number" id="inquiry_count_30d" value="25" placeholder="Inq" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 8px;">
+          <label>API Endpoint</label>
+          <input type="text" id="apiUrl" value="http://localhost:8001" />
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn">Calculate Fair Price</button>
+        <div id="statusMsg" class="status-msg"></div>
+      </form>
+    </div>
+
+    <!-- Right: Prediction Results -->
+    <div class="card">
+      <h2>Prediction & Explainability</h2>
+
+      <div id="resultsPlaceholder" style="text-align: center; color: var(--muted); padding: 40px 0;">
+        Submit the form to compute fair price recommendation
+      </div>
+
+      <div id="resultsContent" style="display: none;">
+        <div class="price-box">
+          <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">Recommended Retail Price</div>
+          <div class="price-val" id="resPrice">₹0</div>
+          <div class="price-range" id="resRange">Band: ₹0 - ₹0 (±15%)</div>
+        </div>
+
+        <div class="meta-row">
+          <span>MoSJE Fair Wage Floor:</span>
+          <strong id="resFloor">₹0</strong>
+        </div>
+        <div class="meta-row">
+          <span>Floor Compliance:</span>
+          <span id="resCompliance" class="tag tag-success">Compliant</span>
+        </div>
+        <div class="meta-row">
+          <span>GI Tag Premium:</span>
+          <span id="resGI">Applied</span>
+        </div>
+        <div class="meta-row">
+          <span>Bulk Wholesale Discount:</span>
+          <span id="resBulk">None</span>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <label>Top SHAP Contributors</label>
+          <div class="shap-list" id="shapList"></div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <label>Raw Response</label>
+          <pre id="rawJson"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const presets = {
+      silk: {
+        craft_category: "Textiles",
+        material_type: "Silk",
+        region_state: "Uttar Pradesh",
+        artisan_experience_yrs: 15,
+        raw_material_cost_inr: 1200,
+        state_min_wage_inr: 500,
+        labor_hours_estimated: 24,
+        product_complexity: "4",
+        bulk_order_qty: 1,
+        season_quarter: "4",
+        gi_tag_certified: "true",
+        listing_views_30d: 450,
+        inquiry_count_30d: 35
+      },
+      pottery: {
+        craft_category: "Pottery",
+        material_type: "Clay",
+        region_state: "Rajasthan",
+        artisan_experience_yrs: 8,
+        raw_material_cost_inr: 200,
+        state_min_wage_inr: 350,
+        labor_hours_estimated: 8,
+        product_complexity: "2",
+        bulk_order_qty: 5,
+        season_quarter: "3",
+        gi_tag_certified: "false",
+        listing_views_30d: 120,
+        inquiry_count_30d: 10
+      },
+      jewelry: {
+        craft_category: "Jewelry",
+        material_type: "Silver",
+        region_state: "Gujarat",
+        artisan_experience_yrs: 20,
+        raw_material_cost_inr: 2500,
+        state_min_wage_inr: 450,
+        labor_hours_estimated: 30,
+        product_complexity: "5",
+        bulk_order_qty: 1,
+        season_quarter: "4",
+        gi_tag_certified: "true",
+        listing_views_30d: 800,
+        inquiry_count_30d: 70
+      },
+      bulk: {
+        craft_category: "Textiles",
+        material_type: "Cotton",
+        region_state: "Tamil Nadu",
+        artisan_experience_yrs: 6,
+        raw_material_cost_inr: 150,
+        state_min_wage_inr: 400,
+        labor_hours_estimated: 4,
+        product_complexity: "2",
+        bulk_order_qty: 100,
+        season_quarter: "2",
+        gi_tag_certified: "false",
+        listing_views_30d: 200,
+        inquiry_count_30d: 40
+      }
+    };
+
+    function loadPreset(key) {
+      const p = presets[key];
+      if (!p) return;
+      for (const [k, v] of Object.entries(p)) {
+        const el = document.getElementById(k);
+        if (el) el.value = v;
+      }
+    }
+
+    // Health check
+    async function checkHealth() {
+      const api = document.getElementById('apiUrl').value.replace(/\/$/, '');
+      const badge = document.getElementById('apiStatus');
+      try {
+        const res = await fetch(`${api}/api/v1/pricing/health`, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          badge.textContent = 'API: Online';
+          badge.className = 'badge online';
+        } else {
+          badge.textContent = 'API: ' + res.status;
+          badge.className = 'badge';
+        }
+      } catch (e) {
+        badge.textContent = 'API: Offline';
+        badge.className = 'badge';
+      }
+    }
+    checkHealth();
+    document.getElementById('apiUrl').addEventListener('change', checkHealth);
+
+    // Dummy JWT token for testing
+    function getTestToken() {
+      const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+      const payload = btoa(JSON.stringify({ sub: "artisan_demo", exp: Math.floor(Date.now()/1000) + 3600 }));
+      return `${header}.${payload}.signature`;
+    }
+
+    // Form submit
+    document.getElementById('priceForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submitBtn');
+      const statusMsg = document.getElementById('statusMsg');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Computing...';
+      statusMsg.className = 'status-msg';
+
+      const payload = {
+        craft_category: document.getElementById('craft_category').value,
+        material_type: document.getElementById('material_type').value,
+        region_state: document.getElementById('region_state').value,
+        artisan_experience_yrs: parseInt(document.getElementById('artisan_experience_yrs').value),
+        raw_material_cost_inr: parseFloat(document.getElementById('raw_material_cost_inr').value),
+        state_min_wage_inr: parseFloat(document.getElementById('state_min_wage_inr').value),
+        labor_hours_estimated: parseFloat(document.getElementById('labor_hours_estimated').value),
+        product_complexity: parseInt(document.getElementById('product_complexity').value),
+        bulk_order_qty: parseInt(document.getElementById('bulk_order_qty').value),
+        season_quarter: parseInt(document.getElementById('season_quarter').value),
+        gi_tag_certified: document.getElementById('gi_tag_certified').value === 'true',
+        listing_views_30d: parseInt(document.getElementById('listing_views_30d').value) || 0,
+        inquiry_count_30d: parseInt(document.getElementById('inquiry_count_30d').value) || 0
+      };
+
+      const api = document.getElementById('apiUrl').value.replace(/\/$/, '');
+
+      try {
+        const res = await fetch(`${api}/api/v1/pricing/predict-price`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getTestToken()}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          document.getElementById('resultsPlaceholder').style.display = 'none';
+          document.getElementById('resultsContent').style.display = 'block';
+
+          document.getElementById('resPrice').textContent = `₹${data.predicted_price_inr.toLocaleString('en-IN')}`;
+          document.getElementById('resRange').textContent = `Band: ₹${data.price_lower_bound_inr.toLocaleString('en-IN')} - ₹${data.price_upper_bound_inr.toLocaleString('en-IN')} (±15%)`;
+          document.getElementById('resFloor').textContent = `₹${data.fair_wage_floor_inr.toLocaleString('en-IN')}`;
+          
+          const comp = document.getElementById('resCompliance');
+          comp.textContent = data.floor_compliant ? 'Compliant' : 'Violation';
+          comp.className = data.floor_compliant ? 'tag tag-success' : 'tag tag-error';
+
+          document.getElementById('resGI').textContent = data.gi_premium_applied ? 'Yes (+Premium)' : 'No';
+          document.getElementById('resBulk').textContent = data.bulk_discount_applied ? 'Yes (Wholesale)' : 'No (Retail)';
+
+          const shapContainer = document.getElementById('shapList');
+          shapContainer.innerHTML = '';
+          if (data.shap_top_features && data.shap_top_features.length > 0) {
+            data.shap_top_features.forEach(f => {
+              const div = document.createElement('div');
+              div.className = 'shap-item';
+              const sign = f.shap_value >= 0 ? '+' : '';
+              const cls = f.shap_value >= 0 ? 'pos' : 'neg';
+              div.innerHTML = `<span>${f.feature}</span><span class="${cls}">${sign}₹${f.shap_value}</span>`;
+              shapContainer.appendChild(div);
+            });
+          } else {
+            shapContainer.innerHTML = '<span style="color:var(--muted)">No SHAP values returned</span>';
+          }
+
+          document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+        } else {
+          statusMsg.textContent = `Error ${res.status}: ${data.detail?.message || JSON.stringify(data.detail)}`;
+          statusMsg.className = 'status-msg error';
+        }
+      } catch (err) {
+        statusMsg.textContent = `Connection failed: ${err.message}. Make sure API is running on ${api}`;
+        statusMsg.className = 'status-msg error';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Calculate Fair Price';
+      }
+    });
+  </script>
+</body>
+</html>

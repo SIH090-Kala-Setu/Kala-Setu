@@ -1,0 +1,35 @@
+# requirements_ml.txt — KalaSetu Dynamic Pricing Engine
+# Dependencies for GPU-accelerated XGBoost on Windows (Python 3.10+)
+
+# ── Core ML & Math ──────────────────────────────────────────────────────────
+xgboost>=2.1.0              # Includes native CUDA support on Windows/Linux
+numpy>=1.26.0
+pandas>=2.2.0
+scikit-learn>=1.5.0
+scipy>=1.13.0
+
+# ── Hyperparameter Optimisation & Explainability ────────────────────────────
+optuna>=3.6.0
+shap>=0.45.0
+matplotlib>=3.8.0
+
+# ── API & Web Framework ────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+
+# ── Authentication & Security ──────────────────────────────────────────────
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# ── Database & Serialisation ───────────────────────────────────────────────
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+pyarrow>=16.0.0
+
+# ── Utilities ──────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+tqdm>=4.66.0
+kaggle>=1.6.0
+

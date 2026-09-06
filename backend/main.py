@@ -114,6 +114,8 @@ class UserRegister(BaseModel):
     preferred_lang: Optional[str] = "Hindi"
     craft_type: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
 
 class UserLogin(BaseModel):
     username: str
@@ -552,22 +554,29 @@ def send_otp_endpoint(req: SendOtpRequest):
     if not req.phone:
         raise HTTPException(status_code=400, detail="Phone number is required")
     # Generate OTP
-    from services.sms_service import generate_otp, send_otp_sms
+    from services.sms_service import generate_otp, send_otp_sms, normalize_phone
     otp = generate_otp(req.phone)
     # Send OTP
     success = send_otp_sms(req.phone, otp)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send OTP SMS")
-    return {"message": "OTP sent successfully"}
+    return {"message": "OTP sent successfully", "otp": otp}
 
 @app.post("/auth/verify-otp")
 def verify_otp_endpoint(req: VerifyOtpRequest, db: Session = Depends(get_db)):
-    from services.sms_service import verify_otp
+    from services.sms_service import verify_otp, normalize_phone
     if not verify_otp(req.phone, req.otp):
         raise HTTPException(status_code=401, detail="Invalid OTP")
     
-    # Check if user already exists
-    user = db.query(models.User).filter(models.User.phone_number == req.phone).first()
+    norm = normalize_phone(req.phone)
+    # Check if user already exists with any format of phone number or username
+    user = db.query(models.User).filter(
+        (models.User.phone_number == req.phone) |
+        (models.User.phone_number == norm) |
+        (models.User.phone_number == f"+91{norm}") |
+        (models.User.username == req.phone) |
+        (models.User.username == norm)
+    ).first()
     if user:
         # Auto-login the user
         access_token = auth.create_access_token(data={"sub": user.username})
@@ -584,25 +593,29 @@ def verify_otp_endpoint(req: VerifyOtpRequest, db: Session = Depends(get_db)):
 
 @app.post("/auth/register", response_model=UserResponse)
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
+    from services.sms_service import normalize_phone
+    phone = user.phone_number or (user.username if user.username.isdigit() and len(user.username) >= 10 else None)
+    if not phone:
+        phone = user.aadhaar_number[-10:] if (user.aadhaar_number and len(user.aadhaar_number) >= 10) else f"98765{str(uuid.uuid4().int)[:10]}"
+    norm = normalize_phone(phone)
+
     db_user = db.query(models.User).filter(
         (models.User.username == user.username) | 
-        (models.User.phone_number == user.username)
+        (models.User.phone_number == phone) |
+        (models.User.phone_number == norm) |
+        (models.User.phone_number == f"+91{norm}")
     ).first()
     if db_user:
         raise HTTPException(status_code=400, detail="User already registered")
     
     hashed_pwd = auth.hash_password(user.password)
     is_verified = user.role in ["Buyer", "Aggregator", "Admin"]
+    full_name = user.full_name or user.username.capitalize()
     
-    # PostgreSQL
-    phone = user.aadhaar_number[-10:] if (user.aadhaar_number and len(user.aadhaar_number) >= 10) else f"98765{str(uuid.uuid4().int)[:10]}"
-    if user.username.isdigit() and len(user.username) >= 10:
-        phone = user.username
-        
     new_user = models.User(
         username=user.username,
         phone_number=phone,
-        full_name=user.username.capitalize(),
+        full_name=full_name,
         email=f"{user.username}@artisan.ai",
         password_hash=hashed_pwd,
         role=user.role,

@@ -1,0 +1,105 @@
+# SYSTEM PROMPT — KalaSetu Dynamic Pricing Engine (XGBoost)
+
+You are an expert ML engineer building a production-grade XGBoost 
+regression pipeline for KalaSetu — an AI marketplace platform that 
+predicts fair prices for Indian handcraft products sold by marginalized 
+artisans on behalf of the Ministry of Social Justice and Empowerment (MoSJE).
+
+## TASK
+Implement a complete, GPU-accelerated XGBoost regression system that:
+1. Ingests and preprocesses artisan product data
+2. Engineers domain-specific features for Indian handicrafts
+3. Trains on CUDA (RTX 3050, 4GB VRAM) with max GPU utilization
+4. Exposes a FastAPI `/predict-price` endpoint matching KalaSetu's 
+   existing backend pattern (SQLAlchemy + JWT + Pydantic v2)
+5. Achieves R² ≥ 0.88 on holdout set
+
+## INPUT FEATURES (from KalaSetu DB schema)
+- craft_category: enum [Textiles, Pottery, Jewelry, Folk Painting, 
+  Wood Inlay, Metalcraft, Tribal Craft]
+- material_type: string (Silk, Cotton, Clay, Silver, Wood, etc.)
+- region_state: Indian state name
+- gi_tag_certified: boolean
+- artisan_experience_yrs: int
+- raw_material_cost_inr: float
+- labor_hours_estimated: float
+- product_complexity: int [1–5 ordinal]
+- bulk_order_qty: int (1 = retail, 50+ = B2B wholesale)
+- season_quarter: int [1–4]
+- state_min_wage_inr: float (from Ministry of Labour index)
+- listing_views_30d: int
+- inquiry_count_30d: int
+
+## TARGET
+fair_price_inr: float — the recommended retail price in INR
+
+## CONSTRAINTS
+- GPU: RTX 3050, 4GB VRAM — use tree_method="hist", device="cuda"
+- Backend: FastAPI + SQLAlchemy (PostgreSQL) — match existing patterns
+- No Docker; runs locally on Windows with uvicorn
+- Model must serialize to .ubj (XGBoost binary) for prod deployment
+- Include SHAP explainability for the artisan dashboard
+- Price floor = state_min_wage_inr × labor_hours × 1.3 (fair wage floor)
+- Output confidence interval (±15% bounds) alongside point estimate
+
+## DELIVERABLES
+1. data_pipeline.py — ingestion, cleaning, feature engineering
+2. train.py — GPU-accelerated XGBoost training + Optuna HPO
+3. evaluate.py — R², MAE, MAPE, SHAP plots
+4. pricing_service.py — FastAPI router matching main.py patterns
+5. requirements_ml.txt — pinned deps for RTX 3050
+
+## STYLE
+- Match KalaSetu backend: Pydantic v2 schemas, SQLAlchemy ORM models,
+  JWT via python-jose, responses in snake_case JSON
+- Add bilingual comments (English + Hindi inline) for artisan-facing logic
+- Raise HTTP 422 if predicted price falls below fair wage floor
+
+
+# train.py — RTX 3050 max GPU utilization
+import xgboost as xgb
+
+params = {
+    # GPU — critical for 3050
+    "device":          "cuda",
+    "tree_method":     "hist",      # GPU histogram — fastest on 3050
+    "sampling_method": "gradient_based",  # GPU-native sampling
+
+    # Tuned for 4GB VRAM
+    "max_bin":         512,         # higher = more accurate, more VRAM
+    "n_estimators":    800,
+    "learning_rate":   0.03,
+
+    # Regularization (prevents overfit on small artisan datasets)
+    "max_depth":       6,
+    "min_child_weight":5,
+    "subsample":       0.8,
+    "colsample_bytree":0.75,
+    "reg_alpha":       0.1,         # L1
+    "reg_lambda":      1.5,         # L2
+    "gamma":           0.05,
+
+    # Objective
+    "objective":       "reg:squarederror",
+    "eval_metric":     ["rmse","mae"],
+    "seed":            42,
+}
+
+dtrain = xgb.DMatrix(X_train, label=y_train, enable_categorical=True)
+dval   = xgb.DMatrix(X_val,   label=y_val,   enable_categorical=True)
+
+model = xgb.train(
+    params,
+    dtrain,
+    num_boost_round=800,
+    evals=[(dtrain,"train"),(dval,"val")],
+    early_stopping_rounds=50,
+    verbose_eval=25,
+)
+
+model.save_model("kala_setu_pricing.ubj")
+
+ Key GPU flags — why they matter RTX 3050 · 4 GB VRAM
+device="cuda"Routes all tree building to GPU. Required for any speedup. tree_method="hist"GPU histogram algorithm — 10–20× faster than "exact" on tabular data. sampling_method=
+"gradient_based"GPU-native row sampling; CPU fallback "uniform" kills throughput. max_bin=512Higher bins = more granular splits. 512 fits within 4 GB for typical artisan datasets (<500k rows). enable_categoricalNative GPU categorical encoding — skip manual LabelEncoder for craft_category & region_state. 
+
