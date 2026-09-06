@@ -57,6 +57,9 @@ class ArtisanProfile(Base):
     upi_id = Column(String(100), nullable=True)
     govt_scheme_beneficiary = Column(Boolean, default=False)
     photo_url = Column(String, nullable=True)
+    village = Column(String(100), nullable=True)
+    experience_years = Column(Integer, default=0, nullable=True)
+    bio = Column(String, nullable=True)
     subscribed_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
 
     # Relationships
@@ -92,6 +95,7 @@ class Product(Base):
     pricing_suggestions = relationship("PricingSuggestion", back_populates="product")
     inquiries = relationship("BuyerInquiry", back_populates="product")
     views = relationship("ProductView", back_populates="product")
+    reviews = relationship("ProductReview", back_populates="product", cascade="all, delete-orphan")
 
 
 # 4. Product Images Model
@@ -364,4 +368,23 @@ class ProductView(Base):
     viewed_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
 
     product = relationship("Product", back_populates="views")
+
+
+# 20. Product Reviews Model
+class ProductReview(Base):
+    __tablename__ = "product_reviews"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    buyer_name = Column(String(100), nullable=False)
+    buyer_org = Column(String(100), nullable=True)
+    rating = Column(Integer, nullable=False, default=5)
+    comment = Column(String, nullable=True)
+    is_verified_buyer = Column(Boolean, default=False)
+    is_recommended = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+
+    product = relationship("Product", back_populates="reviews")
+    user = relationship("User")
 
