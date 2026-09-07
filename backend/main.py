@@ -2,6 +2,10 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, status, Request, Query
 from fastapi.responses import StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import base64
+import os
+import pathlib
 from pydantic import BaseModel
 from typing import List, Optional, Union
 import io
@@ -40,6 +44,14 @@ try:
         conn.execute(text("ALTER TABLE artisan_profile ADD COLUMN IF NOT EXISTS village VARCHAR;"))
         conn.execute(text("ALTER TABLE artisan_profile ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0;"))
         conn.execute(text("ALTER TABLE artisan_profile ADD COLUMN IF NOT EXISTS bio VARCHAR;"))
+        conn.execute(text("CREATE TABLE IF NOT EXISTS product_reviews (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), product_id UUID REFERENCES products(id) ON DELETE CASCADE, created_at TIMESTAMPTZ DEFAULT NOW());"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL;"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS buyer_name VARCHAR(100) NOT NULL DEFAULT 'Verified Buyer';"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS buyer_org VARCHAR(100);"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS rating INTEGER NOT NULL DEFAULT 5;"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS comment TEXT;"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS is_verified_buyer BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN DEFAULT TRUE;"))
     logger.info("Database tables and columns verified / created successfully.")
 except Exception as e:
     logger.error(f"DB schema migration check failed (will retry on first request): {e}")
@@ -49,6 +61,11 @@ app = FastAPI(
     description="AI-driven backend for artisan studio cataloging, role dashboards, and B2B linkages.",
     version="2.0.0"
 )
+
+# Serve uploaded product images as static files
+_UPLOADS_DIR = pathlib.Path("uploads/products")
+_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # --- Background scheduler for time-based notifications ---
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -928,17 +945,31 @@ def create_product(
     db.commit()
     db.refresh(new_product)
         
-    # Link image to images table
+    # Link image to images table — save base64 data URIs as real files
     if product.image_url:
-        prod_img = models.ProductImage(
-            product_id=new_product.id,
-            original_url=product.image_url,
-            enhanced_url=product.image_url,
-            is_primary=True
-        )
-        db.add(prod_img)
-        db.commit()
-        db.refresh(new_product)
+        img_url = product.image_url
+        if img_url.startswith("data:image"):
+            try:
+                header, b64data = img_url.split(",", 1)
+                ext = "png" if "png" in header else "jpg"
+                filename = f"{new_product.id}.{ext}"
+                filepath = _UPLOADS_DIR / filename
+                with open(filepath, "wb") as f:
+                    f.write(base64.b64decode(b64data))
+                img_url = f"/uploads/products/{filename}"
+            except Exception as e:
+                logger.warning(f"Failed to save base64 image: {e}")
+                img_url = None
+        if img_url:
+            prod_img = models.ProductImage(
+                product_id=new_product.id,
+                original_url=img_url,
+                enhanced_url=img_url,
+                is_primary=True
+            )
+            db.add(prod_img)
+            db.commit()
+            db.refresh(new_product)
             
     return map_product_to_response(new_product)
 
