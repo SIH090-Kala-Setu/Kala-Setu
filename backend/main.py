@@ -52,6 +52,7 @@ try:
         conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS comment TEXT;"))
         conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS is_verified_buyer BOOLEAN DEFAULT FALSE;"))
         conn.execute(text("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN DEFAULT TRUE;"))
+        conn.execute(text("ALTER TABLE buyer_inquiries ADD COLUMN IF NOT EXISTS response_message VARCHAR;"))
     logger.info("Database tables and columns verified / created successfully.")
 except Exception as e:
     logger.error(f"DB schema migration check failed (will retry on first request): {e}")
@@ -223,6 +224,8 @@ class InquiryResponse(BaseModel):
     quantity: int
     notes: Optional[str] = None
     status: str
+    response_message: Optional[str] = None
+    created_at: Optional[str] = None
     product: Optional[ProductResponse] = None
     class Config:
         from_attributes = True
@@ -448,6 +451,8 @@ def map_inquiry_to_response(inquiry) -> InquiryResponse:
         quantity=inquiry.quantity,
         notes=inquiry.message,
         status=inquiry.status,
+        response_message=getattr(inquiry, "response_message", None),
+        created_at=inquiry.created_at.isoformat() if inquiry.created_at else None,
         product=map_product_to_response(inquiry.product) if inquiry.product else None
     )
 
@@ -3485,6 +3490,7 @@ def respond_to_inquiry(
     new_status = status or "Responded"
     inquiry.status = new_status
     inquiry.responded_at = datetime.datetime.utcnow()
+    inquiry.response_message = response_message
 
     prod_title = inquiry.product.title_en if inquiry.product else "Craft Item"
 

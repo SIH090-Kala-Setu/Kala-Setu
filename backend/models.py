@@ -165,6 +165,7 @@ class BuyerInquiry(Base):
     status = Column(String, default="Pending")  # Enum: Pending, Responded, Completed
     created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     responded_at = Column(DateTime(timezone=True), nullable=True)
+    response_message = Column(String, nullable=True)
 
     # Relationships
     product = relationship("Product", back_populates="inquiries")
