@@ -74,3 +74,6 @@ Thumbs.db
 
 KalasetuV2/
 ML/raw_datasets/
+MLV2/venv
+.env.example
+backend/uploads/

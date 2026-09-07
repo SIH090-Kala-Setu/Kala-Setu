@@ -1,0 +1,23 @@
+# KalaSetu Pricing Engine V2 — Dependencies
+# Install: pip install -r requirements_v2.txt
+
+# ── Web Framework ──
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+
+# ── ML / Numeric ──
+xgboost>=2.0.0
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.3.0         # for train_test_split and metrics in train_phase2.py
+
+# ── HTTP (Ollama client) ──
+requests>=2.31.0
+
+# ── Pydantic / Config ──
+pydantic>=2.0
+python-dotenv>=1.0.0
+
+# ── DB (for train_phase2.py — optional if not training) ──
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.6

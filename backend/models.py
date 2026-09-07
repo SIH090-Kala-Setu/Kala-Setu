@@ -90,11 +90,11 @@ class Product(Base):
 
     # Relationships
     artisan = relationship("ArtisanProfile", back_populates="products")
-    images = relationship("ProductImage", back_populates="product")
-    voice_inputs = relationship("VoiceInput", back_populates="product")
-    pricing_suggestions = relationship("PricingSuggestion", back_populates="product")
-    inquiries = relationship("BuyerInquiry", back_populates="product")
-    views = relationship("ProductView", back_populates="product")
+    images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
+    voice_inputs = relationship("VoiceInput", back_populates="product", cascade="all, delete-orphan")
+    pricing_suggestions = relationship("PricingSuggestion", back_populates="product", cascade="all, delete-orphan")
+    inquiries = relationship("BuyerInquiry", back_populates="product", cascade="all, delete-orphan")
+    views = relationship("ProductView", back_populates="product", cascade="all, delete-orphan")
     reviews = relationship("ProductReview", back_populates="product", cascade="all, delete-orphan")
 
 
@@ -378,14 +378,18 @@ class ProductReview(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    buyer_name = Column(String(100), nullable=False)
+    reviewer_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewer_name = Column(String(100), nullable=True, default="Verified Buyer")
+    buyer_name = Column(String(100), nullable=False, default="Verified Buyer")
     buyer_org = Column(String(100), nullable=True)
     rating = Column(Integer, nullable=False, default=5)
     comment = Column(String, nullable=True)
     is_verified_buyer = Column(Boolean, default=False)
     is_recommended = Column(Boolean, default=True)
+    artisan_reply = Column(String, nullable=True)
+    reply_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
 
     product = relationship("Product", back_populates="reviews")
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id])
 
