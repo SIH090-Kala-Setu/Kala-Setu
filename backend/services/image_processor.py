@@ -38,9 +38,18 @@ class ImageProcessor:
         """
         if cls._session is None:
             try:
+                import onnxruntime as ort
+                available = ort.get_available_providers()
+                logger.info(f"ONNX available providers: {available}")
+                if "DmlExecutionProvider" in available:
+                    providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
+                elif "CUDAExecutionProvider" in available:
+                    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                else:
+                    providers = ["CPUExecutionProvider"]
                 _, new_session = _get_rembg()
-                cls._session = new_session('u2netp')
-                logger.info("Initialized lightweight u2netp background removal session.")
+                cls._session = new_session('isnet-general-use', providers=providers)
+                logger.info(f"isnet-general-use session running on: {providers[0]}")
             except Exception as e:
                 logger.warning(f"Could not load u2netp session: {e}. Will fallback to default.")
                 cls._session = None
@@ -61,8 +70,8 @@ class ImageProcessor:
             if input_image.mode not in ('RGB', 'RGBA'):
                 input_image = input_image.convert('RGB')
 
-            # 3. Downscale to max 512px for super-fast u2netp inference
-            max_dimension = 512
+            # 3. Downscale to max 1024px for birefnet-lite native resolution
+            max_dimension = 1024
             if max(input_image.size) > max_dimension:
                 input_image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
 
@@ -183,7 +192,7 @@ class ImageProcessor:
             if not is_success:
                 return image_bytes
 
-            del img, square, enhanced_square, final_img
+            del img, square, composited_white, final_img
             gc.collect()
 
             return buffer.tobytes()
